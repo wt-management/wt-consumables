@@ -76,6 +76,12 @@
     <span class="logo">📊 올리지오 소모품 일일매출보고</span>
     <span class="who" id="who"></span>
     <span class="sp"></span>
+    <select onchange="if(this.value)location.href=this.value" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">
+      <option value="" style="color:#000">🔁 사이트 이동</option>
+      <option value="https://wt-management.github.io/wontech/" style="color:#000">한국 영업</option>
+      <option value="https://wt-management.github.io/wontech/intl.html" style="color:#000">해외 영업</option>
+      <option value="https://wt-management.github.io/wtj-management/" style="color:#000">일본법인 관리</option>
+    </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
     <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 엑셀 업로드</button>
     <button onclick="doLogout()">로그아웃</button>
