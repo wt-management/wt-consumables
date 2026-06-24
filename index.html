@@ -30,7 +30,13 @@
   header button.primary{background:#2563eb;border-color:#2563eb}
   header .who{font-size:12px;color:#94a3b8}
   /* 보고서 */
-  .wrap{max-width:1100px;margin:24px auto;padding:0 18px}
+  .wrap{max-width:1680px;margin:20px auto;padding:0 24px}
+  .chart-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:18px}
+  .chart-cell{border:1px solid #eef2f7;border-radius:10px;padding:14px 16px;min-width:0}
+  .chart-title{font-size:14px;font-weight:800;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+  .chart-title .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  table.mini th,table.mini td{padding:5px 5px;font-size:11px}
+  @media(max-width:980px){.chart-grid{grid-template-columns:1fr}}
   .rpt{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.06);overflow:hidden;margin-bottom:22px}
   .rpt-head{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:22px 26px}
   .rpt-head h2{font-size:20px;font-weight:900;letter-spacing:-.3px}
@@ -312,17 +318,18 @@ var _MON=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월'
 function renderChartsHTML(charts){
   if(!charts || !charts.length) return '';
   var h='<div class="rpt"><div class="rpt-head" style="background:linear-gradient(135deg,#334155,#475569)"><h2>월별 판매량 추이</h2><div class="date">26년 실적(막대) vs 목표(선) · 전년 대비</div></div>';
+  h+='<div class="chart-grid">';
   charts.forEach(function(c,idx){
-    h+='<div class="sec"><h3><span class="n" style="background:#f97316">📊</span>'+c.title+'</h3>';
-    h+='<div style="height:240px"><canvas id="chart-'+idx+'"></canvas></div>';
-    h+='<div class="scroll"><table style="margin-top:12px"><tr><th>구분</th>'+_MON.map(function(m){return '<th>'+m+'</th>';}).join('')+'</tr>';
+    h+='<div class="chart-cell"><div class="chart-title"><span class="dot" style="background:'+(c.color||'#f97316')+'"></span>'+c.title+'</div>';
+    h+='<div style="height:200px"><canvas id="chart-'+idx+'"></canvas></div>';
+    h+='<div class="scroll"><table class="mini" style="margin-top:10px"><tr><th>구분</th>'+_MON.map(function(m){return '<th>'+m+'</th>';}).join('')+'</tr>';
     h+='<tr class="sum"><td class="lbl">26년 실적</td>'+c.actual.map(function(v){return '<td>'+(v!=null?v.toLocaleString():'-')+'</td>';}).join('')+'</tr>';
-    h+='<tr><td class="lbl muted" style="font-size:11px">목표비</td>'+c.actual.map(function(v,i){var t=c.target[i];var r=(v!=null&&t)?v/t:null;return '<td class="muted">'+(r!=null?Math.round(r*100)+'%':'-')+'</td>';}).join('')+'</tr>';
+    h+='<tr><td class="lbl muted">목표비</td>'+c.actual.map(function(v,i){var t=c.target[i];var r=(v!=null&&t)?v/t:null;return '<td class="muted">'+(r!=null?Math.round(r*100)+'%':'-')+'</td>';}).join('')+'</tr>';
     h+='<tr><td class="lbl">25년 실적</td>'+c.prior.map(function(v){return '<td class="muted">'+(v!=null?v.toLocaleString():'-')+'</td>';}).join('')+'</tr>';
-    h+='<tr><td class="lbl muted" style="font-size:11px">전년비</td>'+c.actual.map(function(v,i){var p=c.prior[i];var r=(v!=null&&p)?(v-p)/p:null;return '<td>'+fmtVs(r)+'</td>';}).join('')+'</tr>';
+    h+='<tr><td class="lbl muted">전년비</td>'+c.actual.map(function(v,i){var p=c.prior[i];var r=(v!=null&&p)?(v-p)/p:null;return '<td>'+fmtVs(r)+'</td>';}).join('')+'</tr>';
     h+='</table></div></div>';
   });
-  h+='</div>';
+  h+='</div></div>';
   return h;
 }
 function drawCharts(charts){
