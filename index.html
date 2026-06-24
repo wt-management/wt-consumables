@@ -232,16 +232,10 @@ function parseGSheet(wb, sheetName){
 }
 function parseTargets(wb){
   var ws=wb.Sheets['목표']; if(!ws) return null;
-  var g=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
-  var t={dX:[],dO:[],iX:[],iO:[]};
-  for(var m=0;m<12;m++){ t.dX[m]=null;t.dO[m]=null;t.iX[m]=null;t.iO[m]=null; }
-  for(var i=0;i<g.length;i++){
-    var row=g[i]||[], ml=row[11];
-    if(ml==null) continue;
-    var m=parseInt(String(ml),10);
-    if(m>=1 && m<=12){ t.dX[m-1]=row[1]; t.dO[m-1]=row[3]; t.iX[m-1]=row[6]; t.iO[m-1]=row[8]; }
-  }
-  return t;
+  // 목표 시트는 데이터 범위가 B열부터 시작 → header:1 인덱스가 어긋남.
+  // 절대 셀 주소로 읽기 (월별 1~12 = 5~16행, 국내X=B 국내O=D 해외X=G 해외O=I)
+  function col(letter){ var a=[]; for(var r=5;r<=16;r++){ var c=ws[letter+r]; a.push(c&&typeof c.v==='number'?c.v:null); } return a; }
+  return { dX:col('B'), dO:col('D'), iX:col('G'), iO:col('I') };
 }
 function parseAllCharts(wb){
   try{
@@ -300,6 +294,7 @@ function renderReport(R){
   var domToday=d&&d.domestic?d.domestic.today:0, intToday=d&&d.overseas?d.overseas.today:0;
 
   var h='';
+  h+=renderChartsHTML(R.charts);
   h+='<div class="rpt">';
   h+=' <div class="rpt-head"><h2>올리지오 소모품 일일 매출 보고</h2>'
     +'<div class="date">보고일자 · '+(R.date||'-')+'</div>'
@@ -352,7 +347,6 @@ function renderReport(R){
   }
 
   h+='</div>';
-  h+=renderChartsHTML(R.charts);
   document.getElementById('report-area').innerHTML=h;
   drawCharts(R.charts);
 }
