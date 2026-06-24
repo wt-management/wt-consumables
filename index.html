@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>올리지오 소모품 일일매출보고</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;font-size:14px}
+  #veil{position:fixed;inset:0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;z-index:9999;color:#64748b}
+  .hidden{display:none!important}
+  /* 로그인 */
+  #login{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e3a5f);display:flex;align-items:center;justify-content:center;z-index:1000}
+  #login .box{background:#fff;border-radius:16px;padding:36px;width:340px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  #login h1{font-size:18px;font-weight:800;margin-bottom:4px;color:#0f172a}
+  #login p{font-size:12px;color:#64748b;margin-bottom:24px}
+  #login input{width:100%;padding:11px 13px;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;margin-bottom:12px}
+  #login button{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  #login .err{color:#dc2626;font-size:12px;margin-bottom:10px;display:none}
+  /* 헤더 */
+  header{background:#0f172a;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50}
+  header .logo{font-size:15px;font-weight:800}
+  header .sp{flex:1}
+  header button{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+  header button.primary{background:#2563eb;border-color:#2563eb}
+  header .who{font-size:12px;color:#94a3b8}
+  /* 보고서 */
+  .wrap{max-width:1100px;margin:24px auto;padding:0 18px}
+  .rpt{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.06);overflow:hidden;margin-bottom:22px}
+  .rpt-head{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:22px 26px}
+  .rpt-head h2{font-size:20px;font-weight:900;letter-spacing:-.3px}
+  .rpt-head .date{font-size:13px;color:#cbd5e1;margin-top:4px}
+  .rpt-head .total{font-size:15px;font-weight:700;margin-top:12px;background:rgba(255,255,255,.1);display:inline-block;padding:8px 16px;border-radius:10px}
+  .sec{padding:20px 26px;border-top:1px solid #f1f5f9}
+  .sec h3{font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .sec h3 .n{background:#2563eb;color:#fff;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 10px;text-align:right;border-bottom:1px solid #f1f5f9;white-space:nowrap}
+  th{background:#f8fafc;color:#475569;font-weight:700;font-size:12px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  td.lbl{font-weight:700;color:#0f172a;text-align:left}
+  tr.sum td{background:#eff6ff;font-weight:800}
+  .pos{color:#dc2626}.neg{color:#2563eb}
+  .muted{color:#94a3b8}
+  .sub{font-size:11px;color:#94a3b8;margin-top:4px}
+  .bar{height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;min-width:80px;display:inline-block;vertical-align:middle}
+  .bar>i{display:block;height:100%;background:#22c55e;border-radius:4px}
+  #empty{text-align:center;padding:70px 20px;color:#94a3b8}
+  #empty .big{font-size:40px;margin-bottom:10px}
+  .scroll{overflow-x:auto}
+  @media(max-width:640px){.rpt-head h2{font-size:17px}th,td{padding:7px 6px;font-size:12px}}
+</style>
+</head>
+<body>
+<div id="veil">불러오는 중...</div>
+
+<!-- 로그인 -->
+<div id="login" class="hidden">
+  <div class="box">
+    <h1>📊 소모품 일일매출보고</h1>
+    <p>원텍 영업 관리 시스템</p>
+    <div class="err" id="login-err"></div>
+    <input id="login-email" type="email" placeholder="이메일" autocomplete="username">
+    <input id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button id="login-btn" onclick="doLogin()">로그인</button>
+  </div>
+</div>
+
+<!-- 앱 -->
+<div id="app" class="hidden">
+  <header>
+    <span class="logo">📊 올리지오 소모품 일일매출보고</span>
+    <span class="who" id="who"></span>
+    <span class="sp"></span>
+    <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
+    <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 엑셀 업로드</button>
+    <button onclick="doLogout()">로그아웃</button>
+  </header>
+  <div class="wrap" id="report-area">
+    <div id="empty">
+      <div class="big">📄</div>
+      <div>아직 업로드된 보고서가 없습니다.</div>
+      <div style="margin-top:6px;font-size:13px">우측 상단 <b>엑셀 업로드</b>로 소모품 매출 엑셀을 올려주세요.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 설정 ──────────────────────────────────────────────
+var SUPABASE_URL='https://mhfacbsittfdkknwybhc.supabase.co';
+var SUPABASE_ANON='sb_publishable_aPMOOWAlyJlMcP1ZM_gpPA_jlrcvCRd';
+var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+var _currentUser = null;
+
+// ── 포맷 헬퍼 ─────────────────────────────────────────
+function fmtWon(n){
+  if(n==null || n==='' || n==='-') return '-';
+  n = Number(n); if(isNaN(n)) return '-';
+  if(Math.abs(n) >= 1e8) return (n/1e8).toFixed(1)+'억';
+  if(Math.abs(n) >= 1e4) return Math.round(n/1e4).toLocaleString()+'만';
+  return Math.round(n).toLocaleString();
+}
+function fmtWonFull(n){ n=Number(n); return isNaN(n)?'-':Math.round(n).toLocaleString()+'원'; }
+function fmtPct(r){
+  if(r==null || r==='' || r==='-') return '-';
+  r = Number(r); if(isNaN(r)) return '-';
+  return (r*100).toFixed(1)+'%';
+}
+function fmtVs(r){ // 증감률 색상
+  if(r==null || r==='' || r==='-') return '<span class="muted">-</span>';
+  r = Number(r); if(isNaN(r)) return '<span class="muted">-</span>';
+  var p=(r*100).toFixed(1)+'%';
+  if(r>0) return '<span class="pos">▲ '+p+'</span>';
+  if(r<0) return '<span class="neg">▼ '+Math.abs(r*100).toFixed(1)+'%</span>';
+  return '<span class="muted">0%</span>';
+}
+function num(v){ return (typeof v==='number')?v:(parseFloat(v)||0); }
+function fmtDate(v){
+  if(v instanceof Date) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  if(typeof v==='number'){ // 엑셀 시리얼
+    var d=new Date(Math.round((v-25569)*86400*1000));
+    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+  }
+  return v? String(v).slice(0,10) : '';
+}
+
+// ── 엑셀 파싱 (TIP 시트) ───────────────────────────────
+function parseTIP(wb){
+  var ws = wb.Sheets['TIP'];
+  if(!ws) throw new Error("'TIP' 시트를 찾을 수 없습니다. 소모품 매출 엑셀이 맞는지 확인해주세요.");
+  var g = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  function findRow(marker, from){
+    for(var i=(from||0); i<g.length; i++){
+      var row=g[i]||[];
+      for(var j=0;j<row.length;j++){ if(row[j]!=null && String(row[j]).indexOf(marker)>=0) return i; }
+    }
+    return -1;
+  }
+  function C(r,c){ var row=g[r]||[]; return row[c]; }
+
+  var R={};
+  // 보고일자
+  var rd=findRow('보고일자');
+  R.date = rd>=0 ? fmtDate(C(rd,3)) : '';
+
+  // 1. 일 매출 현황 — 국내/해외/합계 + vs
+  var s1=findRow('1. 일 매출 현황');
+  function row6(r){ return {label:C(r,1), today:num(C(r,3)), prevDay:num(C(r,4)), prevMonthAvg:num(C(r,5)), ytdAvg:num(C(r,6)), monthTargetAvg:num(C(r,7)), lastYearAvg:num(C(r,8))}; }
+  function vs6(r){ return {label:C(r,1), prevDay:C(r,4), prevMonthAvg:C(r,5), ytdAvg:C(r,6), monthTargetAvg:C(r,7), lastYearAvg:C(r,8)}; }
+  R.daily={ domestic:row6(s1+2), overseas:row6(s1+3), total:row6(s1+4),
+            vsDom:vs6(s1+5), vsInt:vs6(s1+6), vsTot:vs6(s1+7) };
+
+  // 2. 당월 매출 Progress
+  var s2=findRow('2. 당월 매출 Progress');
+  function prog(r){ return {label:C(r,1), cum:num(C(r,3)), target:num(C(r,4)), achieve:C(r,5), progress:C(r,6), remain:num(C(r,7))}; }
+  R.progress={ domestic:prog(s2+2), overseas:prog(s2+3), total:prog(s2+4) };
+
+  // 3-1. 병원별
+  var sh=findRow('1) 병원별');
+  var hStart=sh+3; // 헤더 2줄 뒤
+  R.hospitals=[];
+  for(var i=hStart;i<g.length;i++){
+    var name=C(i,1);
+    if(name==null || String(name).trim()==='') break;
+    if(String(name).indexOf('합계')>=0){ R.hospTotal={xF:num(C(i,3)),xE:num(C(i,4)),xS:num(C(i,5)),oF:num(C(i,6)),oE:num(C(i,7)),oS:num(C(i,8)),tip:num(C(i,9))}; break; }
+    R.hospitals.push({name:String(name), xF:num(C(i,3)),xE:num(C(i,4)),xS:num(C(i,5)),oF:num(C(i,6)),oE:num(C(i,7)),oS:num(C(i,8)),tip:num(C(i,9))});
+  }
+
+  // 3-2. 품목별 (국내/해외 × 4품목 × 수량/금액). 그룹 라벨은 병합셀이라 carry-forward
+  var sp=findRow('2) 품목별');
+  R.products=[];
+  if(sp>=0){
+    var pStart=-1;
+    for(var z=sp+1; z<sp+8 && z<g.length; z++){
+      var it=C(z,2);
+      if(it!=null && (String(it).indexOf('Face')>=0 || String(it).indexOf('Eye')>=0)){ pStart=z; break; }
+    }
+    if(pStart>=0){
+      var curGrp='';
+      for(var k=pStart;k<g.length;k++){
+        var item=C(k,2);
+        if(item==null || (String(item).indexOf('Face')<0 && String(item).indexOf('Eye')<0)) break;
+        var grp=C(k,1); if(grp!=null && String(grp).trim()!=='') curGrp=String(grp).replace(/\n/g,' ');
+        R.products.push({ grp:curGrp, item:String(item),
+          qToday:num(C(k,3)), qPrev:num(C(k,4)), qCum:num(C(k,5)), qLast:num(C(k,6)),
+          amtToday:num(C(k,7)), amtCum:num(C(k,8)), amtLast:num(C(k,9)) });
+      }
+    }
+  }
+  R.uploadedAt = new Date().toISOString();
+  return R;
+}
+
+// ── 렌더 ──────────────────────────────────────────────
+function renderReport(R){
+  if(!R) return;
+  var d=R.daily, p=R.progress;
+  var domToday=d&&d.domestic?d.domestic.today:0, intToday=d&&d.overseas?d.overseas.today:0;
+
+  var h='';
+  h+='<div class="rpt">';
+  h+=' <div class="rpt-head"><h2>올리지오 소모품 일일 매출 보고</h2>'
+    +'<div class="date">보고일자 · '+(R.date||'-')+'</div>'
+    +'<div class="total">국내 '+fmtWonFull(domToday)+' + 해외 '+fmtWonFull(intToday)+' = <b>'+fmtWonFull(domToday+intToday)+'</b></div></div>';
+
+  // 1. 일 매출 현황
+  if(d){
+    h+=' <div class="sec"><h3><span class="n">1</span> 일 매출 현황</h3><div class="scroll"><table>';
+    h+='<tr><th>항목</th><th>금일 매출</th><th>전 영업일</th><th>전월 일평균</th><th>당해 누적 일평균</th><th>월목표 일평균</th><th>작년 일평균</th></tr>';
+    function dRow(o,cls){ if(!o) return '';
+      return '<tr class="'+(cls||'')+'"><td class="lbl">'+(o.label||'')+'</td><td>'+fmtWon(o.today)+'</td><td>'+fmtWon(o.prevDay)+'</td><td>'+fmtWon(o.prevMonthAvg)+'</td><td>'+fmtWon(o.ytdAvg)+'</td><td>'+fmtWon(o.monthTargetAvg)+'</td><td>'+fmtWon(o.lastYearAvg)+'</td></tr>'; }
+    h+=dRow(d.domestic)+dRow(d.overseas)+dRow(d.total,'sum');
+    function vsRow(o){ if(!o) return '';
+      return '<tr><td class="lbl muted" style="font-size:11px">'+(o.label||'')+'</td><td class="muted">-</td><td>'+fmtVs(o.prevDay)+'</td><td>'+fmtVs(o.prevMonthAvg)+'</td><td>'+fmtVs(o.ytdAvg)+'</td><td>'+fmtVs(o.monthTargetAvg)+'</td><td>'+fmtVs(o.lastYearAvg)+'</td></tr>'; }
+    h+=vsRow(d.vsTot);
+    h+='</table></div><div class="sub">* 영업일 기준: 주말·공휴일 제외 / 증감률은 합계 기준</div></div>';
+  }
+
+  // 2. 당월 Progress
+  if(p){
+    h+=' <div class="sec"><h3><span class="n">2</span> 당월 매출 Progress</h3><div class="scroll"><table>';
+    h+='<tr><th>항목</th><th>당월 누적</th><th>월 목표</th><th>달성률</th><th>목표 진행율</th><th>잔여 매출</th></tr>';
+    function pRow(o,cls){ if(!o) return '';
+      var ach=num(o.achieve); var bar='<div class="bar"><i style="width:'+Math.min(ach*100,100)+'%;background:'+(ach>=num(o.progress)?'#22c55e':'#f59e0b')+'"></i></div>';
+      return '<tr class="'+(cls||'')+'"><td class="lbl">'+(o.label||'')+'</td><td>'+fmtWon(o.cum)+'</td><td>'+fmtWon(o.target)+'</td><td>'+fmtPct(o.achieve)+' '+bar+'</td><td>'+fmtPct(o.progress)+'</td><td>'+fmtWon(o.remain)+'</td></tr>'; }
+    h+=pRow(p.domestic)+pRow(p.overseas)+pRow(p.total,'sum');
+    h+='</table></div><div class="sub">* 목표 진행율: 당월 경과 영업일 / 당월 총 영업일</div></div>';
+  }
+
+  // 3-1 병원별
+  if(R.hospitals && R.hospitals.length){
+    h+=' <div class="sec"><h3><span class="n">3</span> 일일 수주 상세 — 병원별</h3><div class="scroll"><table>';
+    h+='<tr><th>병원명</th><th>X·Kiss F</th><th>X·Kiss E</th><th>Oligio F</th><th>Oligio E</th><th>Tip 매출액</th></tr>';
+    R.hospitals.forEach(function(x){
+      h+='<tr><td class="lbl">'+x.name+'</td><td>'+(x.xF||'-')+'</td><td>'+(x.xE||'-')+'</td><td>'+(x.oF||'-')+'</td><td>'+(x.oE||'-')+'</td><td>'+fmtWonFull(x.tip)+'</td></tr>';
+    });
+    if(R.hospTotal){ var t=R.hospTotal;
+      h+='<tr class="sum"><td class="lbl">합계</td><td>'+t.xF+'</td><td>'+t.xE+'</td><td>'+t.oF+'</td><td>'+t.oE+'</td><td>'+fmtWonFull(t.tip)+'</td></tr>'; }
+    h+='</table></div></div>';
+  }
+
+  // 3-2 품목별
+  if(R.products && R.products.length){
+    h+=' <div class="sec"><h3><span class="n">3</span> 일일 수주 상세 — 품목별</h3><div class="scroll"><table>';
+    h+='<tr><th>구분</th><th>품목</th><th>금일 수량</th><th>당월누적 수량</th><th>금일 금액</th><th>당월누적 금액</th><th>전년동기 금액</th></tr>';
+    R.products.forEach(function(x){
+      h+='<tr><td class="lbl muted" style="font-size:11px">'+(x.grp||'')+'</td><td class="lbl">'+x.item+'</td><td>'+(x.qToday||'-')+'</td><td>'+(x.qCum||'-')+'</td><td>'+fmtWon(x.amtToday)+'</td><td>'+fmtWon(x.amtCum)+'</td><td>'+fmtWon(x.amtLast)+'</td></tr>';
+    });
+    h+='</table></div></div>';
+  }
+
+  h+='</div>';
+  document.getElementById('report-area').innerHTML=h;
+}
+
+// ── 업로드 ────────────────────────────────────────────
+function handleUpload(input){
+  var file=input.files[0]; if(!file) return; input.value='';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result, {type:'array', cellDates:true});
+      var R=parseTIP(wb);
+      if(!R.daily || !R.daily.total){ alert('보고서 데이터를 읽지 못했습니다. TIP 시트 형식을 확인해주세요.'); return; }
+      renderReport(R);
+      // Supabase 저장
+      _sb.from('consumables_report').upsert({key:'oligio', data:R, updated_at:new Date().toISOString()}, {onConflict:'key'})
+        .then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else { /* 저장됨 */ } });
+    }catch(err){ alert('업로드 처리 오류: '+err.message); console.error(err); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── 데이터 로드 ───────────────────────────────────────
+function loadReport(){
+  _sb.from('consumables_report').select('data').eq('key','oligio').maybeSingle()
+    .then(function(r){
+      if(r.data && r.data.data) renderReport(r.data.data);
+    });
+}
+
+// ── 인증 ──────────────────────────────────────────────
+function doLogin(){
+  var email=document.getElementById('login-email').value.trim();
+  var pw=document.getElementById('login-pw').value;
+  var err=document.getElementById('login-err');
+  var btn=document.getElementById('login-btn');
+  err.style.display='none'; btn.disabled=true; btn.textContent='로그인 중...';
+  _sb.auth.signInWithPassword({email:email, password:pw}).then(function(res){
+    btn.disabled=false; btn.textContent='로그인';
+    if(res.error){ err.textContent='❌ 이메일 또는 비밀번호가 올바르지 않습니다'; err.style.display='block'; return; }
+    enterApp(res.data.user);
+  });
+}
+function doLogout(){ _sb.auth.signOut().then(function(){ location.reload(); }); }
+function enterApp(user){
+  _currentUser=user;
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('veil').classList.add('hidden');
+  document.getElementById('who').textContent=user.email;
+  loadReport();
+}
+function showLogin(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('veil').classList.add('hidden');
+}
+
+// ── 부팅 ──────────────────────────────────────────────
+window.addEventListener('load', function(){
+  _sb.auth.getSession().then(function(r){
+    if(r.data && r.data.session) enterApp(r.data.session.user);
+    else showLogin();
+  });
+});
+</script>
+</body>
+</html>
