@@ -198,6 +198,35 @@ function parseTIP(wb){
       }
     }
   }
+  // ── 4. TIP 판매 Trend (일별/주별/연간) ──
+  function capBlock(hdr,n){
+    var H=[]; for(var k=0;k<n;k++) H.push(C(hdr,3+k));
+    var rows=[];
+    for(var i=hdr+1;i<g.length;i++){
+      var lbl=C(i,1);
+      if(lbl==null || String(lbl).trim()==='' || String(lbl).charAt(0)==='*') break;
+      var vals=[]; for(var kk=0;kk<n;kk++) vals.push(C(i,3+kk));
+      rows.push({label:String(lbl), vals:vals});
+    }
+    return {header:H, rows:rows};
+  }
+  var d1=findRow('1) 일별 Trend'), d2=findRow('2) 주별 Trend'), d3=findRow('3) 연간 Trend');
+  R.trend={};
+  if(d1>=0) R.trend.daily=capBlock(d1+1,7);
+  if(d2>=0) R.trend.weekly=capBlock(d2+1,6);
+  if(d3>=0) R.trend.yearly=capBlock(d3+1,7);
+
+  // ── 5. 국내 올해 상위 구매처 ──
+  var s5=findRow('5. 국내 올해 상위');
+  R.topAccounts=[];
+  if(s5>=0){
+    for(var ti=s5+2;ti<g.length;ti++){
+      var nm=C(ti,1);
+      if(nm==null || String(nm).trim()==='') break;
+      R.topAccounts.push({ name:String(nm), cur:C(ti,4), prior:C(ti,5), vs:C(ti,6), priorYear:C(ti,7) });
+    }
+  }
+
   R.uploadedAt = new Date().toISOString();
   return R;
 }
@@ -287,6 +316,49 @@ function drawCharts(charts){
   });
 }
 
+// ── Trend / 상위구매처 렌더 ──────────────────────────
+function _trendCell(v, mode){
+  if(v==null || v==='') return '<td class="muted">-</td>';
+  if(mode==='chg') return '<td>'+fmtVs(v)+'</td>';
+  if(mode==='pct'){ var n=Number(v); return '<td>'+(isNaN(n)?v:Math.round(n*100)+'%')+'</td>'; }
+  return '<td>'+fmtWon(v)+'</td>';
+}
+function _trendMode(label){
+  if(/증감|전일비|전주비|YoY/.test(label)) return 'chg';
+  if(/목표대비|달성/.test(label)) return 'pct';
+  return 'won';
+}
+function renderTrendBlock(title, blk, isDate){
+  if(!blk || !blk.rows || !blk.rows.length) return '';
+  var hdr=blk.header.map(function(v){
+    if(v==null) return '';
+    if(isDate){ var s=fmtDate(v); var m=/(\d{4})-(\d{2})-(\d{2})/.exec(s); if(m) return m[2]+'/'+m[3]; }
+    return String(v);
+  });
+  var h='<div style="margin:6px 0 18px"><div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px">'+title+'</div><div class="scroll"><table>';
+  h+='<tr><th>구분</th>'+hdr.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';
+  blk.rows.forEach(function(r){
+    var mode=_trendMode(r.label);
+    h+='<tr><td class="lbl">'+r.label+'</td>'+r.vals.map(function(v){return _trendCell(v,mode);}).join('')+'</tr>';
+  });
+  h+='</table></div></div>';
+  return h;
+}
+function renderTopAccounts(tops){
+  if(!tops || !tops.length) return '';
+  var h=' <div class="sec"><h3><span class="n">5</span> 국내 올해 상위 구매처 (Top 10)</h3><div class="scroll"><table>';
+  h+='<tr><th>거래처명</th><th>2026 누계</th><th>2025 동기간</th><th>전년 동기간 대비</th><th>2025 연간 누계</th></tr>';
+  tops.forEach(function(t){
+    var vs;
+    if(t.vs==null || t.vs==='') vs='<td class="muted">-</td>';
+    else if(typeof t.vs==='string') vs='<td><span style="background:#dcfce7;color:#166534;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700">'+t.vs+'</span></td>';
+    else vs='<td>'+fmtVs(t.vs)+'</td>';
+    h+='<tr><td class="lbl">'+t.name+'</td><td>'+fmtWon(t.cur)+'</td><td class="muted">'+fmtWon(t.prior)+'</td>'+vs+'<td class="muted">'+fmtWon(t.priorYear)+'</td></tr>';
+  });
+  h+='</table></div></div>';
+  return h;
+}
+
 // ── 렌더 ──────────────────────────────────────────────
 function renderReport(R){
   if(!R) return;
@@ -345,6 +417,17 @@ function renderReport(R){
     });
     h+='</table></div></div>';
   }
+
+  // 4. TIP 판매 Trend
+  if(R.trend && (R.trend.daily || R.trend.weekly || R.trend.yearly)){
+    h+=' <div class="sec"><h3><span class="n">4</span> TIP 판매 Trend</h3>';
+    h+=renderTrendBlock('1) 일별 Trend (vs 최근 5일)', R.trend.daily, true);
+    h+=renderTrendBlock('2) 주별 Trend (vs 최근 4주)', R.trend.weekly, false);
+    h+=renderTrendBlock('3) 연간 Trend vs 작년', R.trend.yearly, false);
+    h+='</div>';
+  }
+  // 5. 상위 구매처
+  h+=renderTopAccounts(R.topAccounts);
 
   h+='</div>';
   document.getElementById('report-area').innerHTML=h;
