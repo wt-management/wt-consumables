@@ -266,16 +266,43 @@ function parseTargets(wb){
   function col(letter){ var a=[]; for(var r=5;r<=16;r++){ var c=ws[letter+r]; a.push(c&&typeof c.v==='number'?c.v:null); } return a; }
   return { dX:col('B'), dO:col('D'), iX:col('G'), iO:col('I') };
 }
+// G래프 시트: 카트리지(국내/해외)·Fiber 데이터 (26목표/26실적/25년이 정리돼 있음)
+function parseGraphSheet(wb){
+  var ws=wb.Sheets['G래프']; if(!ws) return [];
+  var g=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  var h=-1;
+  for(var i=0;i<g.length;i++){ var r=g[i]||[]; if(r[0]==='월' && String(r[2]||'').indexOf('수량')>=0){ h=i; break; } }
+  if(h<0) return [];
+  function series(tc,ac,pc){
+    var t=[],a=[],p=[];
+    for(var m=0;m<12;m++){ var row=g[h+1+m]||[];
+      t.push(typeof row[tc]==='number'?row[tc]:null);
+      a.push(typeof row[ac]==='number'?row[ac]:null);
+      p.push(typeof row[pc]==='number'?row[pc]:null);
+    }
+    return {target:t, actual:a, prior:p};
+  }
+  var cd=series(1,2,5), ci=series(9,10,13), fb=series(16,17,20);
+  return [
+    {title:'국내 Cartridge 월 판매량 (회계기준)', actual:cd.actual, prior:cd.prior, target:cd.target, color:'#dc2626'},
+    {title:'해외 Cartridge 월 판매량 (회계기준)', actual:ci.actual, prior:ci.prior, target:ci.target, color:'#dc2626'},
+    {title:'Fiber 월 판매량 (회계기준)',           actual:fb.actual, prior:fb.prior, target:fb.target, color:'#fb923c'}
+  ];
+}
 function parseAllCharts(wb){
   try{
     var dom=parseGSheet(wb,'국내G'), intl=parseGSheet(wb,'해외G'), t=parseTargets(wb);
-    if(!dom||!intl||!t) return [];
-    return [
-      {title:'국내 Oligio X, Kiss Tip 월 판매량 (출고기준)', actual:dom.xA, prior:dom.xP, target:t.dX, color:'#f97316'},
-      {title:'국내 Oligio Tip 월 판매량 (출고기준)',        actual:dom.oA, prior:dom.oP, target:t.dO, color:'#f97316'},
-      {title:'해외 Oligio X, Kiss Tip 월 판매량 (회계기준)', actual:intl.xA, prior:intl.xP, target:t.iX, color:'#f97316'},
-      {title:'해외 Oligio Tip 월 판매량 (회계기준)',        actual:intl.oA, prior:intl.oP, target:t.iO, color:'#f97316'}
-    ];
+    var charts=[];
+    if(dom&&intl&&t){
+      charts.push(
+        {title:'국내 Oligio X, Kiss Tip 월 판매량 (출고기준)', actual:dom.xA, prior:dom.xP, target:t.dX, color:'#f97316'},
+        {title:'국내 Oligio Tip 월 판매량 (출고기준)',        actual:dom.oA, prior:dom.oP, target:t.dO, color:'#f97316'},
+        {title:'해외 Oligio X, Kiss Tip 월 판매량 (회계기준)', actual:intl.xA, prior:intl.xP, target:t.iX, color:'#f97316'},
+        {title:'해외 Oligio Tip 월 판매량 (회계기준)',        actual:intl.oA, prior:intl.oP, target:t.iO, color:'#f97316'}
+      );
+    }
+    charts=charts.concat(parseGraphSheet(wb));
+    return charts;
   }catch(e){ console.warn('차트 파싱 실패:', e); return []; }
 }
 
