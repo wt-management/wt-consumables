@@ -54,8 +54,16 @@ tr.intl td:first-child{border-left:3px solid #0d9488}
 .rb-tools{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .rb-tools button{background:#eef2f7;color:#1d4ed8;border:1px solid #dbeafe;padding:6px 12px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer}
 .region-box.intl .rb-tools button{color:#0f766e;border-color:#ccfbf1}
-.ptable input,.ptable select{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 6px;font-size:12.5px}
+.ptable input,.ptable select{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 6px;font-size:12.5px;min-width:0}
 .ptable td{padding:5px 6px}
+.ptable{table-layout:fixed}
+.ptable th:nth-child(1),.ptable td:nth-child(1){width:23%}
+.ptable th:nth-child(2),.ptable td:nth-child(2){width:24%}
+.ptable th:nth-child(3),.ptable td:nth-child(3){width:9%}
+.ptable th:nth-child(4),.ptable td:nth-child(4){width:15%}
+.ptable th:nth-child(5),.ptable td:nth-child(5){width:14%}
+.ptable th:nth-child(6),.ptable td:nth-child(6){width:9%}
+.ptable th:nth-child(7),.ptable td:nth-child(7){width:6%}
 .del-btn{background:#fee2e2;color:#dc2626;border:0;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700}
 .badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700}
 .badge.matched{background:#dcfce7;color:#16a34a}
@@ -114,6 +122,7 @@ canvas{max-height:300px}
     </div>
 
     <div id="report" class="hidden">
+      <div id="datalists"></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
         <h2 style="margin:0;font-size:20px">📊 <span id="ttl-month"></span> 전사 매출 현황</h2>
         <span class="muted" id="basis"></span>
@@ -323,13 +332,24 @@ function render(){
   DIV_ORDER.forEach(function(d){ var a=divAcc(d),t=divTarget(d); if(a===0&&t===0) return; dv.push('<tr class="'+(divRegion(d)==='해외'?'intl':'dom')+'"><td>'+d+'</td><td>'+divRegion(d)+'</td><td>'+won(a)+'</td><td>'+(t?won(t):'-')+'</td><td>'+(t?Math.round(a/t*100)+'%':'-')+'</td></tr>'); });
   document.getElementById('div-table').innerHTML=dv.join('');
 
-  renderPendingTables(); renderCharts(); renderProducts();
+  renderDatalists(); renderPendingTables(); renderCharts(); renderProducts();
+}
+
+// ── 자동완성 datalist (회계 거래처/제품 + 입력값) ─────
+function renderDatalists(){
+  var el=document.getElementById('datalists'); if(!el||!ACC) return;
+  var cust={'국내':{},'해외':{}},prod={'국내':{},'해외':{}};
+  (ACC.lines||[]).forEach(function(l){ if(cust[l.region]){ if(l.customer)cust[l.region][l.customer]=1; if(l.product)prod[l.region][l.product]=1; } });
+  PENDING.forEach(function(p){ if(cust[p.region]){ if(p.customer)cust[p.region][p.customer]=1; if(p.product)prod[p.region][p.product]=1; } });
+  function dl(id,obj){ return '<datalist id="'+id+'">'+Object.keys(obj).sort().map(function(v){return '<option value="'+esc(v)+'">';}).join('')+'</datalist>'; }
+  el.innerHTML=dl('dl-cust-dom',cust['국내'])+dl('dl-prod-dom',prod['국내'])+dl('dl-cust-intl',cust['해외'])+dl('dl-prod-intl',prod['해외']);
 }
 
 // ── 미반영분 에디터 (국내/해외 분리) ──────────────────
 function renderPendingTables(){
   ['국내','해외'].forEach(function(region){
     var t=document.getElementById(region==='국내'?'pend-dom':'pend-intl'); if(!t) return;
+    var rg=region==='국내'?'dom':'intl';
     var head='<tr><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>예정일</th><th>상태</th><th></th></tr>';
     var sub=0,cntW=0,cntM=0;
     var body=PENDING.map(function(p,i){ return {p:p,i:i}; }).filter(function(x){ return x.p.region===region; }).map(function(x){
@@ -337,8 +357,8 @@ function renderPendingTables(){
       if(notDone(p)){ sub+=Number(p.amount)||0; cntW++; } if(p.status==='반영됨') cntM++;
       var st=p.status==='반영됨'?'<span class="badge matched">자동반영</span>':'<span class="badge pending">대기</span>';
       return '<tr style="'+(p.status==='반영됨'?'opacity:.5':'')+'">'+
-        '<td><input value="'+esc(p.customer)+'" onchange="pendSet('+i+",'customer',this.value)\"></td>"+
-        '<td><input value="'+esc(p.product)+'" onchange="pendSet('+i+",'product',this.value)\"></td>"+
+        '<td><input list="dl-cust-'+rg+'" value="'+esc(p.customer)+'" onchange="pendSet('+i+",'customer',this.value)\"></td>"+
+        '<td><input list="dl-prod-'+rg+'" value="'+esc(p.product)+'" onchange="pendSet('+i+",'product',this.value)\"></td>"+
         '<td><input type="number" value="'+(p.qty||'')+'" onchange="pendSet('+i+",'qty',this.value)\" style=\"text-align:right\"></td>"+
         '<td><input type="number" value="'+(p.amount||'')+'" onchange="pendSet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
         '<td><input type="date" value="'+(p.expectedDate||'')+'" onchange="pendSet('+i+",'expectedDate',this.value)\"></td>"+
