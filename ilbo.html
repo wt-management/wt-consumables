@@ -29,21 +29,28 @@ header select{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(2
 .toggle button{border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:pointer;transition:all .15s}
 .toggle button.on{background:#2563eb;color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.4);cursor:default}
 .wrap{max-width:1400px;margin:18px auto 40px;padding:0 24px}
-.rpt-title{text-align:center;background:#e5e7eb;border:1px solid #cbd5e1;padding:14px;font-size:22px;font-weight:800;letter-spacing:8px;border-radius:6px;margin-bottom:6px}
-.rpt-meta{display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:18px}
-.sec-h{font-size:15px;font-weight:800;margin:22px 0 8px;color:#0f172a}
+.rpt-title{text-align:center;background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:17px;font-size:22px;font-weight:800;letter-spacing:9px;border-radius:12px;margin-bottom:8px;box-shadow:0 4px 14px rgba(15,23,42,.18)}
+.rpt-meta{display:flex;justify-content:flex-end;font-size:12px;color:#64748b;margin-bottom:20px}
+.sec-h{font-size:15px;font-weight:800;margin:26px 0 11px;color:#0f172a;padding-left:11px;border-left:4px solid #2563eb;line-height:1.2}
 .sec-h .muted{font-size:12px;font-weight:400;color:#9ca3af}
-table.rpt{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #cbd5e1}
-table.rpt th,table.rpt td{border:1px solid #e2e8f0;padding:8px 10px;text-align:right}
-table.rpt th{background:#6b7280;color:#fff;font-weight:700;font-size:12px;text-align:center}
-table.rpt th.g2{background:#9ca3af}
-table.rpt td.lbl{text-align:left;background:#f8fafc;font-weight:700}
+.rpt-wrap{border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.06);background:#fff;overflow-x:auto}
+table.rpt{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+table.rpt th,table.rpt td{padding:11px 13px;text-align:right;border-bottom:1px solid #eef1f6;font-variant-numeric:tabular-nums}
+table.rpt th{background:linear-gradient(180deg,#5b6675,#49535f);color:#fff;font-weight:600;font-size:12px;text-align:center;letter-spacing:.01em;border-bottom:0}
+table.rpt th.g2{background:linear-gradient(180deg,#6b7685,#5a6573)}
+table.rpt tbody tr:last-child td{border-bottom:0}
+table.rpt td.lbl{text-align:left;background:#f9fafb;font-weight:700;color:#334155}
 table.rpt td.grp{text-align:center;background:#f1f5f9;font-weight:700;vertical-align:middle}
-table.rpt .hi{background:#fff5ec;font-weight:700}
-table.rpt th.hi{background:#ea580c}
-table.rpt tr.sum td{background:#fef3e7;font-weight:800}
-.note{font-size:11.5px;color:#9ca3af;margin:6px 2px 0}
-.up{color:#dc2626}.dn{color:#2563eb}
+table.rpt tbody tr:hover td{background:#f7f9fc}
+table.rpt tbody tr:hover td.lbl{background:#eef2f7}
+table.rpt th.hi{background:linear-gradient(180deg,#fb923c,#ea580c);color:#fff}
+table.rpt .hi{background:#fff7ed;font-weight:700;color:#9a3412}
+table.rpt tbody tr:hover td.hi{background:#ffedd5}
+table.rpt tr.sum td{background:#fef4e8;font-weight:800;color:#1e293b;border-top:2px solid #f59e0b}
+table.rpt tr.sum td.hi{background:#fde4c4;color:#7c2d12}
+table.rpt tr.sum:hover td{background:#fdecd6}
+.note{font-size:11.5px;color:#9ca3af;margin:8px 2px 0}
+.up{color:#dc2626;font-weight:700}.dn{color:#2563eb;font-weight:700}
 /* 미반영 입력 */
 .region-box{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px}
 .region-box.dom .rb-head{background:linear-gradient(135deg,#1d4ed8,#3b82f6)}
@@ -120,16 +127,16 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
       <div class="rpt-meta"><span></span><span>보고일자 : <b id="basis"></b> · 단위: 원, VAT 제외</span></div>
 
       <div class="sec-h">1-1. <span id="m1"></span>月 예상 (요약)</div>
-      <table class="rpt" id="t-summary"></table>
+      <div class="rpt-wrap"><table class="rpt" id="t-summary"></table></div>
 
       <div class="sec-h">2. <span id="m2"></span>月 예상 (사업부별)</div>
-      <table class="rpt" id="t-div"></table>
+      <div class="rpt-wrap"><table class="rpt" id="t-div"></table></div>
       <div class="note" id="div-note"></div>
 
       <div class="sec-h">3. <span id="m3"></span>月 예상 (사업부별 + 품목별) <span class="muted">· 미반영분 입력 기준</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        <table class="rpt" id="t-prod-dom"></table>
-        <table class="rpt" id="t-prod-intl"></table>
+        <div class="rpt-wrap"><table class="rpt" id="t-prod-dom"></table></div>
+        <div class="rpt-wrap"><table class="rpt" id="t-prod-intl"></table></div>
       </div>
 
       <div class="sec-h" style="margin-top:26px">📝 미반영분 (납품/선적 완료·예정) 입력</div>
