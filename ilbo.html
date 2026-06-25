@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전사 일 매출 일보</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;font-size:14px;margin:0}
+.hidden{display:none!important}
+#veil{position:fixed;inset:0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#64748b;z-index:200}
+/* login */
+#login{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b);display:flex;align-items:center;justify-content:center;z-index:150}
+#login .box{background:#fff;padding:34px 30px;border-radius:16px;width:340px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+#login h1{font-size:19px;margin:0 0 4px}#login p{color:#64748b;font-size:13px;margin:0 0 18px}
+#login input{width:100%;padding:11px 12px;margin-bottom:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
+#login button{width:100%;padding:11px;background:#2563eb;color:#fff;border:0;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}
+.err{color:#dc2626;font-size:12px;margin-bottom:10px;display:none}
+/* header */
+header{background:#0f172a;color:#fff;padding:12px 22px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;flex-wrap:wrap}
+header .logo{font-size:16px;font-weight:800}
+header .who{font-size:12px;color:#94a3b8}
+header .sp{flex:1}
+header button,header .btn{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+header button.primary{background:#2563eb;border-color:#2563eb}
+header select{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+/* toggle */
+.toggle-wrap{display:flex;justify-content:center;margin:18px auto 0}
+.toggle{display:inline-flex;background:#e2e8f0;border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+.toggle button{border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:pointer;transition:all .15s}
+.toggle button.on{background:#2563eb;color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.4);cursor:default}
+.wrap{max-width:1400px;margin:18px auto 40px;padding:0 24px}
+.card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:18px}
+.card h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:7px}
+.muted{color:#94a3b8;font-size:12px}
+/* kpi */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpi{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.kpi .l{font-size:12.5px;color:#64748b;font-weight:600;margin-bottom:6px}
+.kpi .v{font-size:1.5rem;font-weight:800}
+.kpi .s{font-size:11.5px;color:#94a3b8;margin-top:3px}
+.up{color:#dc2626}.down{color:#2563eb}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid #f1f5f9}
+th{background:#f8fafc;color:#475569;font-weight:700;font-size:12px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+tr.sumrow td{font-weight:800;background:#fef9f3;border-top:2px solid #e2e8f0}
+.pos{color:#dc2626}.neg{color:#2563eb}
+/* pending editor */
+.pend-tools{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.pend-tools button{background:#2563eb;color:#fff;border:0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+.pend-tools .ghost{background:#eef2f7;color:#334155}
+#pend-table input,#pend-table select{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 6px;font-size:12.5px}
+#pend-table td{padding:5px 6px}
+.del-btn{background:#fee2e2;color:#dc2626;border:0;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:700}
+.badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700}
+.badge.matched{background:#dcfce7;color:#16a34a}
+.badge.pending{background:#fef3c7;color:#b45309}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.cols2{grid-template-columns:1fr}}
+@media(max-width:640px){.wrap{padding:0 12px}th,td{padding:7px 6px;font-size:12px}}
+canvas{max-height:300px}
+</style>
+</head>
+<body>
+<div id="veil">불러오는 중...</div>
+
+<!-- 로그인 -->
+<div id="login" class="hidden">
+  <div class="box">
+    <h1>🏢 전사 일 매출 일보</h1>
+    <p>원텍 영업 관리 시스템</p>
+    <div class="err" id="login-err"></div>
+    <input id="login-email" type="email" placeholder="이메일" autocomplete="username">
+    <input id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button id="login-btn" onclick="doLogin()">로그인</button>
+  </div>
+</div>
+
+<!-- 앱 -->
+<div id="app" class="hidden">
+  <header>
+    <span class="logo">🏢 전사 일 매출 일보</span>
+    <span class="who" id="who"></span>
+    <span class="sp"></span>
+    <select onchange="if(this.value)location.href=this.value">
+      <option value="" style="color:#000">🔁 사이트 이동</option>
+      <option value="https://wt-management.github.io/wontech/" style="color:#000">한국 영업</option>
+      <option value="https://wt-management.github.io/wontech/intl.html" style="color:#000">해외 영업</option>
+      <option value="https://wt-management.github.io/wtj-management/" style="color:#000">일본법인 관리</option>
+      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
+    </select>
+    <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
+    <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 회계 매출자료 업로드</button>
+    <button onclick="doLogout()">로그아웃</button>
+  </header>
+
+  <div class="toggle-wrap">
+    <div class="toggle">
+      <button class="on">🏢 일 매출 일보</button>
+      <button onclick="location.href='https://wt-management.github.io/wt-consumables/'">🧴 소모품 매출 일보</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div id="empty" class="card" style="text-align:center;padding:50px 20px">
+      <div style="font-size:46px">📄</div>
+      <div style="margin-top:10px">아직 업로드된 회계 매출자료가 없습니다.</div>
+      <div class="muted" style="margin-top:6px">우측 상단 <b>📤 회계 매출자료 업로드</b>로 회계팀 일별 매출 엑셀(원텍_YYYY년 M월 D일.xlsx)을 올려주세요.</div>
+    </div>
+
+    <div id="report" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <h2 style="margin:0;font-size:20px">📊 <span id="ttl-month"></span> 전사 매출 현황</h2>
+        <span class="muted" id="basis"></span>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card">
+        <h3>📋 사업부별 매출 (회계 + 미반영 = 예상)</h3>
+        <div style="overflow-x:auto"><table id="div-table"></table></div>
+        <div class="muted" style="margin-top:8px">※ 회계실적은 업로드한 회계자료에서 자동 집계됩니다. 예상 = 회계 + 미반영(예정)분.</div>
+      </div>
+
+      <div class="card">
+        <h3>📝 미반영분(미납품·미선적 예정) 입력 <span class="muted" id="pend-summary"></span></h3>
+        <div class="pend-tools">
+          <button onclick="addPendRow()">＋ 행 추가</button>
+          <button class="ghost" onclick="savePending()">💾 저장</button>
+          <span class="muted">전일 입력분은 자동 유지됩니다. 회계에 잡히면 업로드 시 <span class="badge matched">자동반영</span>으로 표시·제외됩니다.</span>
+        </div>
+        <div style="overflow-x:auto"><table id="pend-table"></table></div>
+      </div>
+
+      <div class="cols2">
+        <div class="card">
+          <h3>📈 월별 매출 추이 (회계)</h3>
+          <canvas id="chart-month"></canvas>
+        </div>
+        <div class="card">
+          <h3>🧩 분기별 매출 (회계)</h3>
+          <canvas id="chart-qtr"></canvas>
+        </div>
+      </div>
+
+      <div class="cols2">
+        <div class="card">
+          <h3>🏥 국내 품목별 <span class="muted">(완료=회계 / 예정=미반영)</span></h3>
+          <div style="overflow-x:auto"><table id="prod-dom"></table></div>
+        </div>
+        <div class="card">
+          <h3>🌏 해외 품목별 <span class="muted">(완료=회계 / 예정=미반영)</span></h3>
+          <div style="overflow-x:auto"><table id="prod-intl"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase ──────────────────────────────────────────
+var SUPABASE_URL='https://mhfacbsittfdkknwybhc.supabase.co';
+var SUPABASE_ANON='sb_publishable_aPMOOWAlyJlMcP1ZM_gpPA_jlrcvCRd';
+var _sb=supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+var _user=null;
+
+// ── 분류 규칙 (검증됨: raw 사용부서→사업부, 원 단위 일치) ──
+var DEPT_MAP={
+  'A0402040':'국내영업','A0402020':'국내영업','A0402030':'국내영업','A0402010':'국내영업','A0402050':'국내영업',
+  'A0401030':'해외영업',
+  'A0401050':'Surgical',
+  'A0501020':'고객만족','A0501010':'고객만족',
+  'A0401060':'B2C',
+  'A0701020':'기타'
+};
+// 국내영업 내 소모품 판별 (품번 키워드)
+var CONS_RE=/tip|cartridge|cathet|카트리지|팁|니들|needle|소모|consum|spray|쿨링/i;
+// 사업부 표시 순서
+var DIV_ORDER=['국내제품','국내소모품','해외영업','Surgical','B2C','고객만족','기타'];
+
+// ── 상태 ──────────────────────────────────────────────
+var ACC=null;        // 파싱된 회계 {reportDate, monthly:{div:{m:amt}}, lines:[], products:{region:{prod:{qty,amt}}}, history:{}}
+var PENDING=[];      // 미반영분 [{id,region,div,customer,product,qty,amount,expectedDate,status,memo}]
+var TARGETS={};      // {div:{m:amt}}
+var _chM=null,_chQ=null;
+
+// ── 유틸 ──────────────────────────────────────────────
+function fmtW(v){ v=Number(v)||0; var a=Math.abs(v); var s;
+  if(a>=1e8) s=(v/1e8).toFixed(a>=1e10?0:1)+'억';
+  else if(a>=1e4) s=Math.round(v/1e4).toLocaleString()+'만';
+  else s=Math.round(v).toLocaleString();
+  return s; }
+function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
+function pct(a,b){ b=Number(b)||0; if(!b) return null; return a/b; }
+function norm(s){ return String(s==null?'':s).replace(/[\s()（）\[\]·.,_\/\-]/g,'').toLowerCase(); }
+function prodName(pn){ pn=String(pn||''); var i=pn.indexOf('.'); return (i>=0?pn.slice(i+1):pn).trim(); }
+function uid(){ return 'p'+Math.random().toString(36).slice(2,9)+(_pendSeq++); }
+var _pendSeq=0;
+
+// ── 회계 raw 파싱 ─────────────────────────────────────
+function classify(deptStr, pnum){
+  var code=String(deptStr||'').split('.')[0];
+  var div=DEPT_MAP[code]||'기타';
+  if(div==='국내영업') div=CONS_RE.test(String(pnum||''))?'국내소모품':'국내제품';
+  return div;
+}
+function parseAccounting(wb, fname){
+  var monthly={}; DIV_ORDER.forEach(function(d){monthly[d]={};});
+  var lines=[]; var products={국내:{},해외:{}};
+  wb.SheetNames.forEach(function(sn){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true});
+    var cur=null;
+    for(var i=1;i<rows.length;i++){
+      var r=rows[i]; if(!r) continue;
+      var adq=r[0], memo=r[1], cname=r[3], debit=Number(r[5])||0, credit=Number(r[6])||0;
+      var dept=r[8], pnum=r[10], qty=Number(r[11])||0, price=Number(r[12])||0;
+      if(typeof adq==='string' && /^\d{4}-\d{2}-\d{2}/.test(adq)) cur=adq.slice(0,10);
+      if(dept==null||dept==='') continue;
+      if(typeof memo==='string' && memo.trim().charAt(0)==='[') continue;  // 합계행 제거
+      var d=(typeof adq==='string'&&/^\d{4}/.test(adq))?adq.slice(0,10):cur;
+      if(!d) continue;
+      var mo=parseInt(d.slice(5,7),10);
+      var amt=credit-debit;
+      var div=classify(dept,pnum);
+      var region=(div==='해외영업')?'해외':'국내';
+      monthly[div][mo]=(monthly[div][mo]||0)+amt;
+      // 거래라인(완료=회계확정) — 당월만 상세 보관
+      var pn=prodName(pnum);
+      lines.push({date:d,month:mo,region:region,div:div,customer:String(cname||''),product:pn,qty:qty,amount:amt});
+      // 품목 집계(당월만 렌더에 사용) — 일단 전체 누적, 렌더에서 당월 필터
+    }
+  });
+  // reportDate 추출: 파일명 우선, 없으면 lines 최대일
+  var rd=null, m=String(fname||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if(m) rd=m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  if(!rd){ lines.forEach(function(l){ if(!rd||l.date>rd) rd=l.date; }); }
+  var curMo=rd?parseInt(rd.slice(5,7),10):new Date().getMonth()+1;
+  // 당월 품목 집계
+  lines.forEach(function(l){
+    if(l.month!==curMo) return;
+    var bag=products[l.region]; var k=l.product||'(미상)';
+    if(!bag[k]) bag[k]={qty:0,amt:0};
+    bag[k].qty+=l.qty; bag[k].amt+=l.amount;
+  });
+  return {reportDate:rd,curMonth:curMo,monthly:monthly,lines:lines.filter(function(l){return l.month===curMo;}),products:products};
+}
+
+// ── 업로드 핸들러 ─────────────────────────────────────
+function handleUpload(input){
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var parsed=parseAccounting(wb,file.name);
+      if(!parsed.reportDate){ alert('날짜를 인식하지 못했습니다. 파일명 또는 승인일자를 확인해주세요.'); return; }
+      ACC=parsed;
+      // 전일대비용 history 갱신
+      saveAccounting();
+      // 미반영분 자동매칭
+      var matched=autoMatch();
+      savePending();
+      render();
+      input.value='';
+      alert('✅ '+parsed.reportDate+' 회계자료 반영 완료'+(matched?(' · 미반영 '+matched+'건 자동반영'):''));
+    }catch(err){ alert('업로드 처리 오류: '+err.message); console.error(err); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── 미반영분 자동매칭 (회계에 잡힌 건 반영처리) ──────────
+function autoMatch(){
+  if(!ACC) return 0; var cnt=0;
+  PENDING.forEach(function(p){
+    if(p.status==='반영됨'||p.status==='취소') return;
+    var pc=norm(p.customer), pp=norm(p.product), pa=Number(p.amount)||0;
+    var hit=ACC.lines.some(function(l){
+      if(norm(l.customer)!==pc) return false;
+      if(norm(l.product)!==pp) return false;
+      if(pa>0 && Math.abs(l.amount-pa)>pa*0.1) return false;
+      return true;
+    });
+    if(hit){ p.status='반영됨'; cnt++; }
+  });
+  return cnt;
+}
+
+// ── 저장/로드 (cons_cache 재사용) ─────────────────────
+function saveAccounting(){
+  // history: 날짜별 사업부 회계 스냅샷(전일대비)
+  var hist=(ACC._history)||{};
+  return _sb.from('cons_cache').upsert({key:'ilbo_acc',data:{
+    reportDate:ACC.reportDate,curMonth:ACC.curMonth,monthly:ACC.monthly,
+    lines:ACC.lines,products:ACC.products,updatedAt:ACC.reportDate
+  }},{onConflict:'key'}).then(function(r){ if(r.error) console.warn('acc save',r.error); });
+}
+function savePending(){
+  return _sb.from('cons_cache').upsert({key:'ilbo_pending',data:{rows:PENDING,updatedAt:ACC?ACC.reportDate:''}},{onConflict:'key'})
+    .then(function(r){ if(r.error) alert('미반영분 저장 실패: '+r.error.message); });
+}
+function loadAll(){
+  return Promise.all([
+    _sb.from('cons_cache').select('data').eq('key','ilbo_acc').maybeSingle(),
+    _sb.from('cons_cache').select('data').eq('key','ilbo_pending').maybeSingle(),
+    _sb.from('cons_cache').select('data').eq('key','ilbo_targets').maybeSingle()
+  ]).then(function(res){
+    if(res[0].data&&res[0].data.data) ACC=res[0].data.data;
+    if(res[1].data&&res[1].data.data&&res[1].data.data.rows) PENDING=res[1].data.data.rows;
+    if(res[2].data&&res[2].data.data) TARGETS=res[2].data.data;
+    render();
+  });
+}
+
+// ── 집계 ──────────────────────────────────────────────
+function divAcc(div){ if(!ACC||!ACC.monthly[div]) return 0; return ACC.monthly[div][ACC.curMonth]||0; }
+function divPend(div){ var s=0; PENDING.forEach(function(p){ if(p.status==='반영됨'||p.status==='취소') return; if(pdiv(p)===div) s+=Number(p.amount)||0; }); return s; }
+function pdiv(p){ // 미반영행의 사업부 키
+  if(p.div) return p.div;
+  return p.region==='해외'?'해외영업':'국내제품';
+}
+function divTarget(div){ if(!TARGETS[div]||!ACC) return 0; return Number(TARGETS[div][ACC.curMonth])||0; }
+function sumMonthly(div){ var o=(ACC&&ACC.monthly[div])||{}; var s=0; for(var m=1;m<=12;m++) s+=o[m]||0; return s; }
+
+// ── 렌더 ──────────────────────────────────────────────
+function render(){
+  if(!ACC){ document.getElementById('empty').classList.remove('hidden'); document.getElementById('report').classList.add('hidden'); renderPending(); return; }
+  document.getElementById('empty').classList.add('hidden');
+  document.getElementById('report').classList.remove('hidden');
+  document.getElementById('ttl-month').textContent='2026년 '+ACC.curMonth+'월';
+  document.getElementById('basis').textContent='기준일 '+(ACC.reportDate||'');
+
+  var accT=0,pendT=0,tgtT=0;
+  DIV_ORDER.forEach(function(d){ accT+=divAcc(d); pendT+=divPend(d); tgtT+=divTarget(d); });
+  var expT=accT+pendT;
+
+  // KPI
+  var kpis=[
+    {l:'전사 회계실적 ('+ACC.curMonth+'월)',v:fmtW(accT),s:'당월 회계 확정',c:'#0f172a'},
+    {l:'미반영(예정)분',v:fmtW(pendT),s:PENDING.filter(notDone).length+'건 대기',c:'#7c3aed'},
+    {l:'예상 매출 (회계+예정)',v:fmtW(expT),s:'관리 기준',c:'#2563eb'},
+    {l:'목표 달성률',v:(tgtT?Math.round(expT/tgtT*100)+'%':'-'),s:tgtT?('목표 '+fmtW(tgtT)):'목표 미설정',c:'#16a34a'}
+  ];
+  document.getElementById('kpis').innerHTML=kpis.map(function(k){
+    return '<div class="kpi"><div class="l">'+k.l+'</div><div class="v" style="color:'+k.c+'">'+k.v+'</div><div class="s">'+k.s+'</div></div>';
+  }).join('');
+
+  // 사업부별 표
+  var rows=['<tr><th>사업부</th><th>회계실적</th><th>미반영(예정)</th><th>예상매출</th><th>목표</th><th>달성률</th></tr>'];
+  DIV_ORDER.forEach(function(d){
+    var a=divAcc(d),p=divPend(d),t=divTarget(d),e=a+p;
+    if(a===0&&p===0&&t===0) return;
+    var rate=t?Math.round(e/t*100)+'%':'-';
+    rows.push('<tr><td>'+divLabel(d)+'</td><td>'+won(a)+'</td><td>'+won(p)+'</td><td>'+won(e)+'</td><td>'+(t?won(t):'-')+'</td><td>'+rate+'</td></tr>');
+  });
+  rows.push('<tr class="sumrow"><td>합계</td><td>'+won(accT)+'</td><td>'+won(pendT)+'</td><td>'+won(expT)+'</td><td>'+(tgtT?won(tgtT):'-')+'</td><td>'+(tgtT?Math.round(expT/tgtT*100)+'%':'-')+'</td></tr>');
+  document.getElementById('div-table').innerHTML=rows.join('');
+
+  renderPending();
+  renderCharts();
+  renderProducts();
+}
+function notDone(p){ return p.status!=='반영됨'&&p.status!=='취소'; }
+function divLabel(d){ return d; }
+
+// ── 미반영분 에디터 ───────────────────────────────────
+function renderPending(){
+  var t=document.getElementById('pend-table'); if(!t) return;
+  var head='<tr><th>구분</th><th>사업부</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>예정일</th><th>상태</th><th></th></tr>';
+  var body=PENDING.map(function(p,i){
+    var st=p.status==='반영됨'?'<span class="badge matched">자동반영</span>':(p.status==='취소'?'<span class="badge pending">취소</span>':'<span class="badge pending">대기</span>');
+    return '<tr style="'+(p.status==='반영됨'?'opacity:.5':'')+'">'+
+      '<td><select onchange="pendSet('+i+",'region',this.value)\">"+opt(['국내','해외'],p.region)+'</select></td>'+
+      '<td><select onchange="pendSet('+i+",'div',this.value)\">"+opt(DIV_ORDER,p.div)+'</select></td>'+
+      '<td><input value="'+esc(p.customer)+'" onchange="pendSet('+i+",'customer',this.value)\"></td>"+
+      '<td><input value="'+esc(p.product)+'" onchange="pendSet('+i+",'product',this.value)\"></td>"+
+      '<td><input type="number" value="'+(p.qty||'')+'" onchange="pendSet('+i+",'qty',this.value)\" style=\"text-align:right\"></td>"+
+      '<td><input type="number" value="'+(p.amount||'')+'" onchange="pendSet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
+      '<td><input type="date" value="'+(p.expectedDate||'')+'" onchange="pendSet('+i+",'expectedDate',this.value)\"></td>"+
+      '<td style="text-align:center">'+st+'</td>'+
+      '<td><button class="del-btn" onclick="delPend('+i+')">✕</button></td></tr>';
+  }).join('');
+  t.innerHTML=head+(body||'<tr><td colspan="9" class="muted" style="text-align:center;padding:16px">미반영분이 없습니다. ＋행 추가로 입력하세요.</td></tr>');
+  var sum=document.getElementById('pend-summary');
+  if(sum) sum.textContent='· 대기 '+PENDING.filter(notDone).length+'건 / 자동반영 '+PENDING.filter(function(p){return p.status==='반영됨';}).length+'건';
+}
+function opt(arr,sel){ return arr.map(function(o){return '<option'+(o===sel?' selected':'')+'>'+o+'</option>';}).join(''); }
+function esc(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function addPendRow(){ PENDING.push({id:uid(),region:'국내',div:'국내제품',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); renderPending(); }
+function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount') v=v===''?'':Number(v); PENDING[i][k]=v; if(k==='div'){ PENDING[i].region=(v==='해외영업')?'해외':'국내'; } if(k==='region'){} updateTotalsLight(); }
+function delPend(i){ PENDING.splice(i,1); renderPending(); updateTotalsLight(); }
+function updateTotalsLight(){ if(ACC) render(); else renderPending(); }
+
+// ── 차트 ──────────────────────────────────────────────
+function renderCharts(){
+  var m12=[]; for(var i=1;i<=12;i++) m12.push(i);
+  var domV=m12.map(function(m){ return +(((ACC.monthly['국내제품'][m]||0)+(ACC.monthly['국내소모품'][m]||0))/1e8).toFixed(2); });
+  var intlV=m12.map(function(m){ return +(((ACC.monthly['해외영업'][m]||0))/1e8).toFixed(2); });
+  var etcV=m12.map(function(m){ var s=0;['Surgical','B2C','고객만족','기타'].forEach(function(d){s+=ACC.monthly[d][m]||0;}); return +(s/1e8).toFixed(2); });
+  if(_chM){_chM.destroy();}
+  _chM=new Chart(document.getElementById('chart-month'),{type:'bar',
+    data:{labels:m12.map(function(m){return m+'월';}),datasets:[
+      {label:'국내',data:domV,backgroundColor:'rgba(37,99,235,.85)',stack:'s'},
+      {label:'해외',data:intlV,backgroundColor:'rgba(13,148,136,.85)',stack:'s'},
+      {label:'기타',data:etcV,backgroundColor:'rgba(148,163,184,.8)',stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.parsed.y+'억';}}}},
+      scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:function(v){return v+'억';}}}}}});
+  // 분기
+  function q(a,b,c){ return +(((sumMo(a)+sumMo(b)+sumMo(c)))/1e8).toFixed(1); }
+  function sumMo(m){ var s=0; DIV_ORDER.forEach(function(d){ s+=ACC.monthly[d][m]||0; }); return s; }
+  var qv=[q(1,2,3),q(4,5,6),q(7,8,9),q(10,11,12)];
+  if(_chQ){_chQ.destroy();}
+  _chQ=new Chart(document.getElementById('chart-qtr'),{type:'bar',
+    data:{labels:['1Q','2Q','3Q','4Q'],datasets:[{label:'회계 매출',data:qv,backgroundColor:'rgba(37,99,235,.8)',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.parsed.y+'억';}}}},
+      scales:{x:{grid:{display:false}},y:{ticks:{callback:function(v){return v+'억';}}}}}});
+}
+
+// ── 품목별 ────────────────────────────────────────────
+function renderProducts(){
+  ['국내','해외'].forEach(function(region){
+    var done=(ACC.products[region])||{};
+    var pend={};
+    PENDING.forEach(function(p){ if(!notDone(p))return; if(p.region!==region)return; var k=p.product||'(미상)'; if(!pend[k])pend[k]={qty:0,amt:0}; pend[k].qty+=Number(p.qty)||0; pend[k].amt+=Number(p.amount)||0; });
+    var keys={}; Object.keys(done).forEach(function(k){keys[k]=1;}); Object.keys(pend).forEach(function(k){keys[k]=1;});
+    var arr=Object.keys(keys).map(function(k){ return {p:k,dq:(done[k]||{}).qty||0,da:(done[k]||{}).amt||0,pq:(pend[k]||{}).qty||0,pa:(pend[k]||{}).amt||0}; });
+    arr.sort(function(a,b){ return (b.da+b.pa)-(a.da+a.pa); });
+    var rows=['<tr><th>제품</th><th>완료 수량</th><th>완료 금액</th><th>예정 수량</th><th>예정 금액</th></tr>'];
+    arr.slice(0,20).forEach(function(r){ rows.push('<tr><td>'+esc(r.p)+'</td><td>'+(r.dq||'')+'</td><td>'+won(r.da)+'</td><td>'+(r.pq||'')+'</td><td>'+(r.pa?won(r.pa):'')+'</td></tr>'); });
+    if(!arr.length) rows.push('<tr><td colspan="5" class="muted" style="text-align:center;padding:14px">데이터 없음</td></tr>');
+    document.getElementById(region==='국내'?'prod-dom':'prod-intl').innerHTML=rows.join('');
+  });
+}
+
+// ── 인증/부팅 ─────────────────────────────────────────
+function doLogin(){
+  var email=document.getElementById('login-email').value.trim();
+  var pw=document.getElementById('login-pw').value;
+  var err=document.getElementById('login-err'), btn=document.getElementById('login-btn');
+  err.style.display='none'; btn.disabled=true; btn.textContent='로그인 중...';
+  _sb.auth.signInWithPassword({email:email,password:pw}).then(function(res){
+    btn.disabled=false; btn.textContent='로그인';
+    if(res.error){ err.textContent='❌ 이메일 또는 비밀번호가 올바르지 않습니다'; err.style.display='block'; return; }
+    enterApp(res.data.user);
+  });
+}
+function doLogout(){ _sb.auth.signOut().then(function(){ location.reload(); }); }
+function enterApp(user){
+  _user=user;
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('veil').classList.add('hidden');
+  document.getElementById('who').textContent=user.email;
+  loadAll();
+}
+function showLogin(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('veil').classList.add('hidden');
+}
+window.addEventListener('load',function(){
+  _sb.auth.getSession().then(function(r){
+    if(r.data&&r.data.session) enterApp(r.data.session.user); else showLogin();
+  });
+});
+</script>
+</body>
+</html>
