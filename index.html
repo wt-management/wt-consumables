@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>올리지오 소모품 일일매출보고</title>
+<title>wontech</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -85,10 +85,12 @@
     <span class="sp"></span>
     <select onchange="if(this.value)location.href=this.value" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">
       <option value="" style="color:#000">🔁 사이트 이동</option>
-      <option value="https://wt-management.github.io/wontech/" style="color:#000">한국 영업</option>
+      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
+      <option value="https://wt-management.github.io/wontech/#app=korea" style="color:#000">한국 영업</option>
       <option value="https://wt-management.github.io/wontech/intl.html" style="color:#000">해외 영업</option>
       <option value="https://wt-management.github.io/wtj-management/" style="color:#000">일본법인 관리</option>
-      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
+      <option value="" style="color:#000" disabled>● 일일매출보고 (현재)</option>
+      <option value="https://wt-management.github.io/wontech/#app=admin" style="color:#000">관리자 페이지</option>
     </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
     <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 엑셀 업로드</button>
@@ -518,7 +520,7 @@ function doLogin(){
     enterApp(res.data.user);
   });
 }
-function doLogout(){ _sb.auth.signOut().then(function(){ location.reload(); }); }
+function doLogout(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
 function enterApp(user){
   _currentUser=user;
   document.getElementById('login').classList.add('hidden');
@@ -537,7 +539,7 @@ function showLogin(){
 window.addEventListener('load', function(){
   _sb.auth.getSession().then(function(r){
     if(r.data && r.data.session) enterApp(r.data.session.user);
-    else showLogin();
+    else location.href='https://wt-management.github.io/wontech/';
   });
 });
 </script>
