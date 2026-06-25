@@ -94,6 +94,15 @@
     <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 엑셀 업로드</button>
     <button onclick="doLogout()">로그아웃</button>
   </header>
+    <div class="wrap" style="margin:18px auto 0;display:flex;justify-content:center">
+    <div style="display:inline-flex;background:#e2e8f0;border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)">
+      <button type="button" onclick="location.href='https://wt-management.github.io/wontech/total.html'"
+        style="border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:pointer;transition:all .15s"
+        onmouseover="this.style.background='rgba(255,255,255,.65)'" onmouseout="this.style.background='transparent'">📊 일 매출 일보</button>
+      <button type="button"
+        style="border:0;background:#2563eb;color:#fff;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:default;box-shadow:0 1px 3px rgba(37,99,235,.4)">🧴 소모품 매출 일보</button>
+    </div>
+  </div>
   <div class="wrap" id="report-area">
     <div id="empty">
       <div class="big">📄</div>
