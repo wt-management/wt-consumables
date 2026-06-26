@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>전사 일 매출 일보</title>
+<title>wontech</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -94,10 +94,12 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
     <span class="sp"></span>
     <select onchange="if(this.value)location.href=this.value">
       <option value="" style="color:#000">🔁 사이트 이동</option>
-      <option value="https://wt-management.github.io/wontech/" style="color:#000">한국 영업</option>
+      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
+      <option value="https://wt-management.github.io/wontech/#app=korea" style="color:#000">한국 영업</option>
       <option value="https://wt-management.github.io/wontech/intl.html" style="color:#000">해외 영업</option>
       <option value="https://wt-management.github.io/wtj-management/" style="color:#000">일본법인 관리</option>
-      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
+      <option value="" style="color:#000" disabled>● 일일매출보고 (현재)</option>
+      <option value="https://wt-management.github.io/wontech/#app=admin" style="color:#000">관리자 페이지</option>
     </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
     <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 회계 매출자료 업로드</button>
@@ -413,7 +415,7 @@ function doLogin(){
     enterApp(res.data.user);
   });
 }
-function doLogout(){ _sb.auth.signOut().then(function(){ location.reload(); }); }
+function doLogout(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
 function showView(v){
   _view=v;
   var pen=document.getElementById('pending-page');
@@ -435,7 +437,7 @@ function showLogin(){
   document.getElementById('login').classList.remove('hidden');
   document.getElementById('veil').classList.add('hidden');
 }
-window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else showLogin(); }); });
+window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else location.href='https://wt-management.github.io/wontech/'; }); });
 </script>
 </body>
 </html>
