@@ -333,12 +333,13 @@ function prodTable(region,word){
   var keys={}; Object.keys(done).forEach(function(k){keys[k]=1;}); Object.keys(plan).forEach(function(k){keys[k]=1;});
   var arr=Object.keys(keys).map(function(k){ return {p:k,dq:(done[k]||{}).q||0,da:(done[k]||{}).a||0,pq:(plan[k]||{}).q||0,pa:(plan[k]||{}).a||0}; }).sort(function(a,b){return (b.da+b.pa)-(a.da+a.pa);});
   var dq=0,da=0,pq=0,pa=0; arr.forEach(function(r){dq+=r.dq;da+=r.da;pq+=r.pq;pa+=r.pa;});
-  var h='<tr><th class="g2" colspan="5">'+(region==='국내'?'국내영업':'해외영업')+'</th></tr>'+
-    '<tr><th>'+word+'완료 제품</th><th>수량</th><th>금액</th><th>'+word+'예정 제품</th><th>금액</th></tr>';
+  var h='<colgroup><col style="width:30%"><col style="width:14%"><col style="width:21%"><col style="width:14%"><col style="width:21%"></colgroup>'+
+    '<tr><th class="g2" colspan="5">'+(region==='국내'?'국내영업':'해외영업')+'</th></tr>'+
+    '<tr><th>제품명</th><th>'+word+'완료 수량</th><th class="hi">'+word+'완료 금액</th><th>'+word+'예정 수량</th><th class="hi">'+word+'예정 금액</th></tr>';
   if(!arr.length) return h+'<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:14px">미반영분 입력 시 표시됩니다</td></tr>';
-  var rows=arr.map(function(r){ return '<tr><td style="text-align:left">'+(r.da?esc(r.p):'')+'</td><td>'+(r.dq||'')+'</td><td>'+(r.da?won(r.da):'')+'</td><td style="text-align:left">'+(r.pa?esc(r.p):'')+'</td><td>'+(r.pa?won(r.pa):'')+'</td></tr>'; }).join('');
-  rows+='<tr class="sum"><td>계</td><td>'+(dq||'')+'</td><td>'+won(da)+'</td><td>예정 계</td><td>'+won(pa)+'</td></tr>';
-  return h+rows;
+  var sumRow='<tr class="sum"><td style="text-align:left">계</td><td>'+(dq||'')+'</td><td class="hi">'+won(da)+'</td><td>'+(pq||'')+'</td><td class="hi">'+won(pa)+'</td></tr>';
+  var rows=arr.map(function(r){ return '<tr><td style="text-align:left">'+esc(r.p)+'</td><td>'+(r.dq||'')+'</td><td>'+(r.da?won(r.da):'-')+'</td><td>'+(r.pq||'')+'</td><td>'+(r.pa?won(r.pa):'-')+'</td></tr>'; }).join('');
+  return h+sumRow+rows;
 }
 
 // ── datalist ──────────────────────────────────────────
