@@ -171,6 +171,7 @@ function divRegion(div){ return div==='해외영업'?'해외':'국내'; }
 var ACC=null, PENDING=[], TARGETS={}, CONSTGT={}, _pendSeq=0;
 
 function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
+function numv(x){ return (x===''||x==null)?'':(Number(x)||0).toLocaleString(); }
 function eok(v){ v=Number(v)||0; return (v/1e8).toFixed(v>=1e10?0:1)+'억'; }
 function norm(s){ return String(s==null?'':s).replace(/[\s()（）\[\]·.,_\/\-]/g,'').toLowerCase(); }
 function prodName(pn){ pn=String(pn||''); var i=pn.indexOf('.'); return (i>=0?pn.slice(i+1):pn).trim(); }
@@ -378,8 +379,8 @@ function renderPend(){
       if(intl) c+='<td><input value="'+esc(p.country)+'" placeholder="국가" onchange="pendSet('+i+",'country',this.value)\"></td>";
       c+='<td><input list="dl-cust-'+rg+'" value="'+esc(p.customer)+'" onchange="pendSet('+i+",'customer',this.value)\"></td>"+
         '<td><input list="dl-prod-'+rg+'" value="'+esc(p.product)+'" onchange="pendSet('+i+",'product',this.value)\"></td>"+
-        '<td><input type="number" value="'+(p.qty||'')+'" onchange="pendSet('+i+",'qty',this.value)\" style=\"text-align:right\"></td>"+
-        '<td><input type="number" value="'+(p.amount||'')+'" onchange="pendSet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
+        '<td><input inputmode="numeric" value="'+numv(p.qty)+'" onchange="pendSet('+i+",'qty',this.value)\" style=\"text-align:right\"></td>"+
+        '<td><input inputmode="numeric" value="'+numv(p.amount)+'" onchange="pendSet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
         '<td><input type="date" value="'+(p.expectedDate||'')+'" onchange="pendSet('+i+",'expectedDate',this.value)\"></td>"+
         '<td><button class="del-btn" onclick="delPend('+i+')">✕</button></td>';
       return '<tr style="'+(dis?'opacity:.5':'')+'">'+c+'</tr>';
@@ -390,7 +391,7 @@ function renderPend(){
   });
 }
 function addPendRow(region){ PENDING.push({id:uid(),region:region,type:'예정',country:'',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); refresh(); }
-function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount') v=v===''?'':Number(v); PENDING[i][k]=v; refresh(); }
+function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } PENDING[i][k]=v; refresh(); }
 function delPend(i){ PENDING.splice(i,1); refresh(); }
 function refresh(){ if(ACC) render(); else renderPend(); }
 
