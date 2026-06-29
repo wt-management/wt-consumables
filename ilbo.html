@@ -72,6 +72,16 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
 .pend-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 @media(max-width:980px){.pend-grid{grid-template-columns:1fr}}
 @media(max-width:640px){.wrap{padding:0 10px}table.rpt th,table.rpt td{padding:6px 5px;font-size:11px}}
+.mch-btn{background:#f59e0b;color:#fff;border:0;border-radius:6px;padding:5px 7px;cursor:pointer;font-weight:800;margin-right:4px;font-size:12px}
+.mch-btn:hover{background:#d97706}
+#match-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:300;padding:24px}
+#match-modal .mm{background:#fff;border-radius:14px;width:min(560px,100%);padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#match-modal h3{font-size:16px;font-weight:800;margin:0 0 4px}
+.mm-card{background:#f1f5f9;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5}
+.mm-tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.mm-tbl th{background:#ecfdf5;color:#065f46;font-weight:700;padding:6px 8px;border:1px solid #d1fae5;text-align:left}
+.mm-tbl td{padding:6px 8px;border:1px solid #eef2f7}
+.mm-note{font-size:11.5px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px 12px;margin-top:12px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -104,15 +114,27 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
       <option value="https://wt-management.github.io/wontech/#app=admin" style="color:#000">관리자 페이지</option>
     </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
-    <button class="primary" onclick="document.getElementById('xlsx-input').click()">📤 회계 매출자료 업로드</button>
+    <button id="upload-btn" class="primary" style="display:none" onclick="document.getElementById('xlsx-input').click()">📤 회계 매출자료 업로드</button>
     <button onclick="doLogout()">로그아웃</button>
   </header>
 
   <div class="toggle-wrap">
     <div class="toggle">
       <button id="tg-report" class="on" onclick="showView('report')">🏢 일 매출 일보</button>
-      <button id="tg-pending" onclick="showView('pending')">📝 미반영분 입력</button>
       <button onclick="location.href='https://wt-management.github.io/wt-consumables/'">🧴 소모품 매출 일보</button>
+      <button id="tg-pending" onclick="showView('pending')" style="display:none">🗂️ 미반영분 관리</button>
+    </div>
+  </div>
+
+  <div id="match-modal">
+    <div class="mm">
+      <h3>🔵 회계 반영 추정 — 확인</h3>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">아래 미반영 건이 회계 매출에 잡힌 것으로 보입니다. 내역을 확인하고 맞으면 제외하세요.</div>
+      <div id="mm-body"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button onclick="closeMatch()" style="background:#e2e8f0;color:#334155;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer">닫기</button>
+        <button id="mm-confirm" onclick="confirmMatch()" style="background:#16a34a;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer">✓ 확인 — 미반영에서 제외</button>
+      </div>
     </div>
   </div>
 
@@ -232,9 +254,9 @@ function handleUpload(input){
       if(ACC&&ACC.reportDate&&ACC.reportDate!==parsed.reportDate) parsed.prev=snapFig(ACC);
       else if(ACC&&ACC.prev) parsed.prev=ACC.prev;
       ACC=parsed; saveAccounting();
-      var matched=autoMatch(); savePending(false);
+      var matched=flagMatches();
       render(); input.value='';
-      alert('✅ '+parsed.reportDate+' 회계자료 반영 완료'+(matched?(' · 미반영 '+matched+'건 자동반영'):''));
+      alert('✅ '+parsed.reportDate+' 회계자료 반영 완료'+(matched?('\n🔵 회계에 잡힌 듯한 미반영 '+matched+'건 — 노란색 행을 눌러 확인 후 제외하세요'):''));
     }catch(err){ alert('업로드 처리 오류: '+err.message); console.error(err); }
   };
   reader.readAsArrayBuffer(file);
@@ -245,13 +267,16 @@ function snapFig(acc){
   return {date:acc.reportDate,tot:tot,cons:cons,prod:tot-cons};
 }
 
-function autoMatch(){
-  if(!ACC) return 0; var cnt=0;
+// 회계(ACC.lines)와 미반영을 거래처+제품+금액±10%로 대조해 '반영 추정' 플래그만 부여(자동 제외 X — 담당자 확인 후 제외)
+var MATCHES={};
+function flagMatches(){
+  MATCHES={}; if(!ACC||!ACC.lines) return 0; var cnt=0;
   PENDING.forEach(function(p){
     if(!notDone(p)) return;
     var pc=norm(p.customer),pp=norm(p.product),pa=Number(p.amount)||0;
-    var hit=ACC.lines.some(function(l){ if(norm(l.customer)!==pc) return false; if(norm(l.product)!==pp) return false; if(pa>0&&Math.abs(l.amount-pa)>pa*0.1) return false; return true; });
-    if(hit){ p.status='반영됨'; cnt++; }
+    if(!pc) return;
+    var hits=ACC.lines.filter(function(l){ if(norm(l.customer)!==pc) return false; if(pp&&norm(l.product)!==pp) return false; if(pa>0&&Math.abs(l.amount-pa)>pa*0.1) return false; return true; });
+    if(hits.length){ MATCHES[p.id]=hits; cnt++; }
   });
   return cnt;
 }
@@ -270,6 +295,7 @@ function loadAll(){
     if(res[2].data&&res[2].data.data) TARGETS=res[2].data.data;
     if(res[3].data&&res[3].data.data) CONSTGT=res[3].data.data;
     PENDING.forEach(function(p){ if(!p.region) p.region=(p.div==='해외영업')?'해외':'국내'; if(!p.type) p.type='예정'; });
+    flagMatches();
     render();
   });
 }
@@ -384,16 +410,16 @@ function renderPend(){
     var rg=region==='국내'?'dom':'intl'; var intl=region==='해외';
     var colg,head,cspan;
     if(intl){
-      colg='<colgroup><col style="width:14%"><col style="width:9%"><col style="width:16%"><col style="width:16%"><col style="width:7%"><col style="width:14%"><col style="width:18%"><col style="width:6%"></colgroup>';
+      colg='<colgroup><col style="width:14%"><col style="width:9%"><col style="width:16%"><col style="width:13%"><col style="width:7%"><col style="width:14%"><col style="width:18%"><col style="width:9%"></colgroup>';
       head='<tr><th>유형</th><th>국가</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>선적예정일</th><th></th></tr>'; cspan=8;
     }else{
-      colg='<colgroup><col style="width:15%"><col style="width:20%"><col style="width:20%"><col style="width:7%"><col style="width:15%"><col style="width:17%"><col style="width:6%"></colgroup>';
+      colg='<colgroup><col style="width:15%"><col style="width:20%"><col style="width:17%"><col style="width:7%"><col style="width:15%"><col style="width:17%"><col style="width:9%"></colgroup>';
       head='<tr><th>유형</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>납품예정일</th><th></th></tr>'; cspan=7;
     }
-    var sub=0,cntW=0,cntM=0;
+    var sub=0,cntW=0,cntM=0,cntMch=0;
     var body=PENDING.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.region===region;}).map(function(x){
       var p=x.p,i=x.i; if(notDone(p)){ sub+=Number(p.amount)||0; cntW++; } if(p.status==='반영됨') cntM++;
-      var dis=p.status==='반영됨';
+      var dis=p.status==='반영됨'; var mch=MATCHES[p.id]; if(mch&&notDone(p)) cntMch++;
       var c='<td><select onchange="pendSet('+i+",'type',this.value)\">"+typeSel(region,p.type)+'</select></td>';
       if(intl) c+='<td><input value="'+esc(p.country)+'" placeholder="국가" onchange="pendSet('+i+",'country',this.value)\"></td>";
       c+='<td><input list="dl-cust-'+rg+'" value="'+esc(p.customer)+'" onchange="pendSet('+i+",'customer',this.value)\"></td>"+
@@ -401,18 +427,41 @@ function renderPend(){
         '<td><input inputmode="numeric" value="'+numv(p.qty)+'" onchange="pendSet('+i+",'qty',this.value)\" style=\"text-align:right\"></td>"+
         '<td><input inputmode="numeric" value="'+numv(p.amount)+'" onchange="pendSet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
         '<td><input type="date" value="'+(p.expectedDate||'')+'" onchange="pendSet('+i+",'expectedDate',this.value)\"></td>"+
-        '<td><button class="del-btn" onclick="delPend('+i+')">✕</button></td>';
-      return '<tr style="'+(dis?'opacity:.5':'')+'">'+c+'</tr>';
+        '<td style="white-space:nowrap">'+(mch?'<button class="mch-btn" onclick="openMatch(\''+esc(p.id)+'\')" title="회계반영 추정 — 클릭하여 확인">✓</button>':'')+'<button class="del-btn" onclick="delPend('+i+')">✕</button></td>';
+      return '<tr style="'+(dis?'opacity:.5':'')+(mch?';background:#fffbeb':'')+'">'+c+'</tr>';
     }).join('');
     t.innerHTML=colg+head+(body||'<tr><td colspan="'+cspan+'" style="text-align:center;color:#9ca3af;padding:14px">＋행 추가로 입력하세요</td></tr>');
     var se=document.getElementById(region==='국내'?'dom-sub':'intl-sub');
-    if(se) se.textContent='대기 '+cntW+'건 · '+won(sub)+'원'+(cntM?(' · 자동반영 '+cntM+'건'):'');
+    if(se) se.textContent='대기 '+cntW+'건 · '+won(sub)+'원'+(cntMch?(' · 🔵반영추정 '+cntMch+'건'):'')+(cntM?(' · 자동반영 '+cntM+'건'):'');
   });
 }
 function addPendRow(region){ PENDING.push({id:uid(),region:region,type:'예정',country:'',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); refresh(); }
 function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } PENDING[i][k]=v; refresh(); }
 function delPend(i){ PENDING.splice(i,1); refresh(); }
 function refresh(){ if(ACC) render(); else renderPend(); }
+// ── 회계반영 추정 확인 모달 ──
+function openMatch(pid){
+  var p=null; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ p=PENDING[i]; break; } }
+  if(!p) return;
+  var hits=MATCHES[pid]||[];
+  var h='<div style="font-size:12px;color:#64748b;margin-bottom:5px">미반영 입력 건</div>'+
+    '<div class="mm-card">'+(p.country?(esc(p.country)+' · '):'')+'<b>'+esc(p.customer||'')+'</b> · '+esc(p.product||'')+' · <b>'+won(p.amount)+'원</b>'+(Number(p.qty)?(' · '+p.qty+'개'):'')+' · 예정 '+(p.expectedDate||'-')+'</div>'+
+    '<div style="font-size:12.5px;color:#0f766e;font-weight:700;margin:14px 0 6px">↓ 회계자료('+((ACC&&ACC.reportDate)||'')+')에 아래와 같이 잡힌 것으로 추정</div>'+
+    '<table class="mm-tbl"><tr><th>거래처</th><th>제품</th><th style="text-align:right">금액</th></tr>'+
+    hits.map(function(l){ return '<tr><td>'+esc(l.customer||'')+'</td><td>'+esc(l.product||'')+'</td><td style="text-align:right">'+won(l.amount)+'원</td></tr>'; }).join('')+'</table>'+
+    '<div class="mm-note">⚠️ 회계 데이터가 완벽하지 않을 수 있으니, 위 내역이 실제 이 건인지 확인 후 제외하세요. 제외하면 미반영 목록에서 삭제됩니다.</div>';
+  document.getElementById('mm-body').innerHTML=h;
+  document.getElementById('mm-confirm').setAttribute('data-id',pid);
+  document.getElementById('match-modal').style.display='flex';
+}
+function closeMatch(){ document.getElementById('match-modal').style.display='none'; }
+function confirmMatch(){
+  var pid=document.getElementById('mm-confirm').getAttribute('data-id');
+  var idx=-1; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ idx=i; break; } }
+  if(idx>=0){ PENDING.splice(idx,1); savePending(false); }
+  delete MATCHES[pid]; closeMatch(); refresh();
+}
+document.addEventListener('click',function(e){ var m=document.getElementById('match-modal'); if(m&&m.style.display==='flex'&&e.target===m) closeMatch(); });
 
 // ── 인증/부팅 ─────────────────────────────────────────
 function doLogin(){
@@ -441,6 +490,14 @@ function enterApp(user){
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('veil').classList.add('hidden');
   document.getElementById('who').textContent=user.email;
+  // 업로드 가능한 사람만 미반영분 관리·업로드 노출
+  _sb.from('crm_profiles').select('access,role').eq('id',user.id).maybeSingle().then(function(r){
+    var pf=(r&&r.data)||{}, ac=String(pf.access||'');
+    var canUp = user.email==='pmw0406@gmail.com' || pf.role==='admin' || ac.indexOf('all')>=0 || ac.indexOf('ilbo')>=0 || ac.indexOf('upload')>=0;
+    var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
+    var ub=document.getElementById('upload-btn'); if(ub) ub.style.display=canUp?'':'none';
+    if(!canUp && _view==='pending') showView('report');
+  }).catch(function(){});
   loadAll();
 }
 function showLogin(){
