@@ -62,8 +62,9 @@ table.rpt tr.sum:hover td{background:#fdecd6}
 .rb-tools button{background:#eef2f7;color:#1d4ed8;border:1px solid #dbeafe;padding:6px 12px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer}
 .region-box.intl .rb-tools button{color:#0f766e;border-color:#ccfbf1}
 table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
-.ptable th,.ptable td{border-bottom:1px solid #f1f5f9;padding:5px 6px;font-size:12.5px;text-align:left}
-.ptable input,.ptable select{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 6px;font-size:12.5px;min-width:0}
+.ptable th,.ptable td{border-bottom:1px solid #f1f5f9;padding:5px 3px;font-size:12.5px;text-align:left}
+.ptable input,.ptable select{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 4px;font-size:11.5px;min-width:0;box-sizing:border-box}
+.ptable input[type=date]{padding:5px 1px;font-size:11px}
 .ptable th{color:#64748b;font-size:11.5px;font-weight:700;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
 .del-btn{background:#fee2e2;color:#dc2626;border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-weight:700}
 .save-bar{display:flex;justify-content:flex-end;margin-top:4px}
@@ -357,7 +358,16 @@ function renderDatalists(){
   var cust={'국내':{},'해외':{}},prod={'국내':{},'해외':{}};
   (ACC.lines||[]).forEach(function(l){ if(cust[l.region]){ if(l.customer)cust[l.region][l.customer]=1; if(l.product)prod[l.region][l.product]=1; } });
   PENDING.forEach(function(p){ if(cust[p.region]){ if(p.customer)cust[p.region][p.customer]=1; if(p.product)prod[p.region][p.product]=1; } });
-  function dl(id,o){ return '<datalist id="'+id+'">'+Object.keys(o).sort().map(function(v){return '<option value="'+esc(v)+'">';}).join('')+'</datalist>'; }
+  function dl(id,o){
+    // 대소문자/공백만 다른 중복 통합 — 혼합표기(Oligio X)를 전부 대문자(OLIGIO X)보다 우선
+    var g={};
+    Object.keys(o).forEach(function(v){ var k=String(v).toLowerCase().replace(/\s+/g,' ').trim(); if(!k) return; if(!g[k]) g[k]=[]; g[k].push(v); });
+    var canon=Object.keys(g).map(function(k){
+      var c=g[k], mixed=c.filter(function(v){return /[a-z]/.test(v)&&/[A-Z]/.test(v);});
+      return (mixed.length?mixed:c).sort()[0];
+    }).sort(function(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; });
+    return '<datalist id="'+id+'">'+canon.map(function(v){return '<option value="'+esc(v)+'">';}).join('')+'</datalist>';
+  }
   el.innerHTML=dl('dl-cust-dom',cust['국내'])+dl('dl-prod-dom',prod['국내'])+dl('dl-cust-intl',cust['해외'])+dl('dl-prod-intl',prod['해외']);
 }
 
@@ -373,10 +383,10 @@ function renderPend(){
     var rg=region==='국내'?'dom':'intl'; var intl=region==='해외';
     var colg,head,cspan;
     if(intl){
-      colg='<colgroup><col style="width:12%"><col style="width:9%"><col style="width:17%"><col style="width:17%"><col style="width:7%"><col style="width:14%"><col style="width:18%"><col style="width:6%"></colgroup>';
+      colg='<colgroup><col style="width:14%"><col style="width:9%"><col style="width:16%"><col style="width:16%"><col style="width:7%"><col style="width:14%"><col style="width:18%"><col style="width:6%"></colgroup>';
       head='<tr><th>유형</th><th>국가</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>선적예정일</th><th></th></tr>'; cspan=8;
     }else{
-      colg='<colgroup><col style="width:13%"><col style="width:21%"><col style="width:21%"><col style="width:7%"><col style="width:16%"><col style="width:16%"><col style="width:6%"></colgroup>';
+      colg='<colgroup><col style="width:15%"><col style="width:20%"><col style="width:20%"><col style="width:7%"><col style="width:15%"><col style="width:17%"><col style="width:6%"></colgroup>';
       head='<tr><th>유형</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>납품예정일</th><th></th></tr>'; cspan=7;
     }
     var sub=0,cntW=0,cntM=0;
