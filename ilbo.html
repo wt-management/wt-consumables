@@ -491,9 +491,10 @@ function enterApp(user){
   document.getElementById('veil').classList.add('hidden');
   document.getElementById('who').textContent=user.email;
   // 업로드 가능한 사람만 미반영분 관리·업로드 노출
-  _sb.from('crm_profiles').select('access,role').eq('id',user.id).maybeSingle().then(function(r){
-    var pf=(r&&r.data)||{}, ac=String(pf.access||'');
-    var canUp = user.email==='pmw0406@gmail.com' || pf.role==='admin' || ac.indexOf('all')>=0 || ac.indexOf('ilbo')>=0 || ac.indexOf('upload')>=0;
+  _sb.from('crm_profiles').select('dept,role').eq('id',user.id).maybeSingle().then(function(r){
+    var pf=(r&&r.data)||{};
+    // 업로드 권한 = 영업전략파트 전원(+ master)
+    var canUp = user.email==='pmw0406@gmail.com' || String(pf.dept||'').indexOf('영업전략')>=0;
     var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
     var ub=document.getElementById('upload-btn'); if(ub) ub.style.display=canUp?'':'none';
     if(!canUp && _view==='pending') showView('report');
