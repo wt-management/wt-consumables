@@ -60,6 +60,16 @@
   #empty .big{font-size:40px;margin-bottom:10px}
   .scroll{overflow-x:auto}
   @media(max-width:640px){.rpt-head h2{font-size:17px}th,td{padding:7px 6px;font-size:12px}}
+#pdf-fab{position:fixed;bottom:18px;right:18px;z-index:90;background:#475569;color:#fff;border:0;border-radius:22px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(15,23,42,.28)}
+#pdf-fab:hover{background:#334155}
+@media print{
+  @page{size:A4 landscape;margin:9mm}
+  body{background:#fff!important}
+  header,#login,#veil,#pdf-fab{display:none!important}
+  .wrap{margin:0 auto!important;max-width:100%!important}
+  .card,table,canvas{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 </style>
 </head>
 <body>
@@ -554,5 +564,7 @@ window.addEventListener('load', function(){
   });
 });
 </script>
+<script>function printPDF(){var t=document.title;var r=function(){document.title=t;window.removeEventListener('afterprint',r);};window.addEventListener('afterprint',r);window.print();}</script>
+<button id="pdf-fab" onclick="printPDF()" title="이 페이지를 PDF로 추출">📄 PDF</button>
 </body>
 </html>

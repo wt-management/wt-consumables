@@ -72,6 +72,16 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
 .pend-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 @media(max-width:980px){.pend-grid{grid-template-columns:1fr}}
 @media(max-width:640px){.wrap{padding:0 10px}table.rpt th,table.rpt td{padding:6px 5px;font-size:11px}}
+#pdf-fab{position:fixed;bottom:18px;right:18px;z-index:90;background:#475569;color:#fff;border:0;border-radius:22px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(15,23,42,.28)}
+#pdf-fab:hover{background:#334155}
+@media print{
+  @page{size:A4 landscape;margin:9mm}
+  body{background:#fff!important}
+  header,.toggle-wrap,#login,#veil,#match-modal,#pdf-fab{display:none!important}
+  .wrap{margin:0 auto!important;max-width:100%!important}
+  .region-box,table.rpt,table.ptable{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 .mch-btn{background:#f59e0b;color:#fff;border:0;border-radius:6px;padding:5px 7px;cursor:pointer;font-weight:800;margin-right:4px;font-size:12px}
 .mch-btn:hover{background:#d97706}
 #match-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:300;padding:24px}
@@ -478,6 +488,7 @@ function doLogin(){
 function doLogout(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
 function showView(v){
   _view=v;
+  try{ sessionStorage.setItem('ilbo_view', v); }catch(e){}
   var pen=document.getElementById('pending-page');
   document.getElementById('tg-report').className=v==='report'?'on':'';
   document.getElementById('tg-pending').className=v==='pending'?'on':'';
@@ -498,6 +509,9 @@ function enterApp(user){
     var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
     var ub=document.getElementById('upload-btn'); if(ub) ub.style.display=canUp?'':'none';
     if(!canUp && _view==='pending') showView('report');
+    // 새로고침이면 머물던 탭 복원(미반영분 관리는 권한자만)
+    var _nav=(performance.getEntriesByType('navigation')[0]||{}).type;
+    if(_nav==='reload'){ var _sv=sessionStorage.getItem('ilbo_view'); if(_sv==='pending'&&canUp) showView('pending'); }
   }).catch(function(){});
   loadAll();
 }
@@ -508,5 +522,7 @@ function showLogin(){
 }
 window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else location.href='https://wt-management.github.io/wontech/'; }); });
 </script>
+<script>function printPDF(){var t=document.title;var r=function(){document.title=t;window.removeEventListener('afterprint',r);};window.addEventListener('afterprint',r);window.print();}</script>
+<button id="pdf-fab" onclick="printPDF()" title="이 페이지를 PDF로 추출">📄 PDF</button>
 </body>
 </html>
