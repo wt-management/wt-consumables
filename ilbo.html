@@ -179,6 +179,10 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
       <div class="sec-h">📝 미반영분 (납품/선적 완료·예정) 입력</div>
       <div class="note" style="margin-bottom:12px">유형 <b>완료</b>=납품(선적)완료·회계 미반영 / <b>예정</b>=미납품(미선적). 회계에 잡히면 업로드 시 자동반영(제외)됩니다.</div>
       <div id="datalists"></div>
+
+      <div class="sec-h" style="margin-top:4px">✅ 오늘 자동제외된 내역 (일별) <span class="muted">· 회계에 <b>거래처+제품+금액(+수량) 정확일치</b>로 자동 제외 · 잘못 빠졌으면 ↩복구</span></div>
+      <div id="reflected-box" style="margin-bottom:8px"></div>
+
       <div class="pend-grid">
         <div class="region-box dom">
           <div class="rb-head">🏥 국내 미반영분 <span class="sub" id="dom-sub"></span></div>
@@ -196,9 +200,6 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
         </div>
       </div>
       <div class="save-bar"><button onclick="savePending(true)">💾 미반영분 저장</button></div>
-
-      <div class="sec-h" style="margin-top:28px">✅ 자동반영 내역 (일별) <span class="muted">· 회계에 <b>거래처+제품+금액 정확일치</b>로 자동 제외된 건 · 잘못 빠졌으면 ↩복구</span></div>
-      <div id="reflected-box"></div>
     </div>
   </div>
 </div>
@@ -289,14 +290,14 @@ function flagMatches(){
   MATCHES={}; if(!ACC||!ACC.lines) return {auto:0,near:0}; var auto=0,near=0;
   PENDING.forEach(function(p){
     if(p.status!=='대기'||p.lock) return;                 // 대기·미잠금 건만 평가
-    var pc=norm(p.customer),pp=norm(p.product),pa=Math.round(Number(p.amount)||0);
+    var pc=norm(p.customer),pp=norm(p.product),pa=Math.round(Number(p.amount)||0),pq=Number(p.qty)||0;
     if(!pc) return;
     var exact=null, cand=[];
     ACC.lines.forEach(function(l){
       if(norm(l.customer)!==pc) return;
-      var la=Math.round(l.amount);
-      if(pp&&norm(l.product)===pp&&la===pa){ if(!exact) exact=l; }        // 거래처+제품+금액 정확일치
-      else if(pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }             // 근접(확인필요)
+      var la=Math.round(l.amount), lq=Number(l.qty)||0;
+      if(pp&&norm(l.product)===pp&&la===pa&&(pq===0||lq===pq)){ if(!exact) exact=l; }   // 거래처+제품+금액(+수량) 정확일치
+      else if(pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }                            // 근접(확인필요)
     });
     if(exact){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(exact.amount); p.matchAuto=true; auto++; }
     else if(cand.length){ MATCHES[p.id]=cand; near++; }
@@ -458,7 +459,7 @@ function renderPend(){
     if(se) se.textContent='대기 '+cntW+'건 · '+won(sub)+'원'+(cntMch?(' · 🔵반영추정 '+cntMch+'건'):'')+(cntM?(' · 자동반영 '+cntM+'건'):'');
   });
 }
-function addPendRow(region){ PENDING.push({id:uid(),region:region,type:'예정',country:'',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); refresh(); }
+function addPendRow(region){ PENDING.unshift({id:uid(),region:region,type:'예정',country:'',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); refresh(); }
 function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } PENDING[i][k]=v; refresh(); }
 function delPend(i){ PENDING.splice(i,1); refresh(); }
 function refresh(){ if(ACC) render(); else renderPend(); }
