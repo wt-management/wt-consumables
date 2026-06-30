@@ -453,7 +453,7 @@ function renderPend(){
       head='<tr><th>유형</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>납품예정일</th><th></th></tr>'; cspan=7;
     }
     var sub=0,cntW=0,cntM=0,cntMch=0;
-    var body=PENDING.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.region===region&&x.p.status!=='반영됨'&&x.p.status!=='취소';}).map(function(x){
+    var body=PENDING.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.region===region&&x.p.status!=='반영됨'&&x.p.status!=='취소';}).sort(function(a,b){return ((MATCHES[b.p.id]&&notDone(b.p))?1:0)-((MATCHES[a.p.id]&&notDone(a.p))?1:0);}).map(function(x){
       var p=x.p,i=x.i; if(notDone(p)){ sub+=Number(p.amount)||0; cntW++; } if(p.status==='반영됨') cntM++;
       var dis=p.status==='반영됨'; var mch=MATCHES[p.id]; if(mch&&notDone(p)) cntMch++;
       var c='<td><select onchange="pendSet('+i+",'type',this.value)\">"+typeSel(region,p.type)+'</select></td>';
