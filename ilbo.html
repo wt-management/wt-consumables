@@ -206,7 +206,7 @@ var SUPABASE_ANON='sb_publishable_aPMOOWAlyJlMcP1ZM_gpPA_jlrcvCRd';
 var _sb=supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 var _user=null;
 
-var DEPT_MAP={'A0402040':'국내영업','A0402020':'국내영업','A0402030':'국내영업','A0402010':'국내영업','A0402050':'국내영업','A0401030':'해외영업','A0401050':'Surgical','A0501020':'고객만족','A0501010':'고객만족','A0401060':'B2C','A0701020':'기타'};
+var DEPT_MAP={'A0402040':'국내영업','A0402020':'국내영업','A0402030':'국내영업','A0402010':'국내영업','A0402050':'국내영업','A0401020':'국내영업','A0401040':'국내영업','A0401070':'국내영업','A0401030':'해외영업','A0401050':'Surgical','B0901030':'Surgical','A0501020':'고객만족','A0501030':'고객만족','A0501010':'고객만족','A0401060':'B2C','A0701020':'기타'};
 var CONS_RE=/tip|cartridge|cathet|카트리지|팁|니들|needle|소모|consum|spray|쿨링/i;
 var DIVS=['국내제품','국내소모품','해외영업','Surgical','B2C','고객만족','기타'];          // 회계 집계용
 var SECT2=['국내영업','해외영업','Surgical','B2C','고객만족'];                              // 사업부별 표 행
@@ -230,7 +230,9 @@ function parseAccounting(wb,fname){
   var monthly={}; DIVS.forEach(function(d){monthly[d]={};});
   var consMonthly={};                       // 전 지역 소모품(품번 기준) 월별
   var lines=[]; var products={'국내':{},'해외':{}};
+  var SHEETS=['상품매출','제품매출','기타매출'];
   wb.SheetNames.forEach(function(sn){
+    if(SHEETS.indexOf(String(sn).trim())<0) return;   // 회계 매출 3탭만 처리(타 시트 무시)
     var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true}); var cur=null;
     for(var i=1;i<rows.length;i++){
       var r=rows[i]; if(!r) continue;
