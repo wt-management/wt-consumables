@@ -126,7 +126,7 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
       <option value="https://wt-management.github.io/wontech/#app=admin" style="color:#000">관리자 페이지</option>
     </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
-    <button id="upload-btn" class="primary" style="display:none" onclick="document.getElementById('xlsx-input').click()">📤 회계 매출자료 업로드</button>
+    <button id="upload-btn" class="primary" style="display:none" onclick="goUploadUnified()">📤 회계 매출자료 업로드</button>
     <button onclick="doLogout()">로그아웃</button>
   </header>
 
@@ -154,7 +154,7 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
     <div id="empty" style="text-align:center;padding:50px 20px;background:#fff;border-radius:14px;margin-top:18px">
       <div style="font-size:46px">📄</div>
       <div style="margin-top:10px">아직 업로드된 회계 매출자료가 없습니다.</div>
-      <div class="note">우측 상단 <b>📤 회계 매출자료 업로드</b>로 회계팀 일별 매출 엑셀(원텍_YYYY년 M월 D일.xlsx)을 올려주세요.</div>
+      <div class="note">우측 상단 <b>📤 회계 매출자료 업로드</b>를 누르면 <b>통합 업로드 페이지</b>로 이동합니다. 거기서 회계팀 일별 매출 엑셀(원텍_YYYY년 M월 D일.xlsx)을 한 번 올리면 일일보고·한국·해외·종합·Sales Portfolio가 모두 갱신됩니다.</div>
     </div>
 
     <div id="report" class="hidden">
@@ -260,6 +260,15 @@ function parseAccounting(wb,fname){
   return {reportDate:rd,curMonth:curMo,monthly:monthly,consMonthly:consMonthly,lines:cl,products:products,updatedAt:rd};
 }
 
+// 회계 업로드 통합 — 한 곳(통합 업로드 페이지)에서 올리면 일일보고 포함 전 사이트 갱신
+function goUploadUnified(){
+  _sb.auth.getSession().then(function(r){
+    var u='https://wt-management.github.io/wontech/upload.html';
+    var s=r.data&&r.data.session;
+    if(s) u+='#at='+encodeURIComponent(s.access_token)+'&rt='+encodeURIComponent(s.refresh_token);
+    location.href=u;
+  });
+}
 function handleUpload(input){
   var file=input.files[0]; if(!file) return;
   var reader=new FileReader();
