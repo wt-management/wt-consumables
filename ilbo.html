@@ -322,6 +322,7 @@ function loadAll(){
     PENDING.forEach(function(p){ if(!p.region) p.region=(p.div==='해외영업')?'해외':'국내'; if(!p.type) p.type='예정'; });
     flagMatches();
     render();
+    try{ if(sessionStorage.getItem('ilbo_view')==='pending') showView('pending'); }catch(e){}
   });
 }
 
