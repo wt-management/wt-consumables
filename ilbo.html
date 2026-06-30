@@ -141,8 +141,8 @@ table.ptable{width:100%;border-collapse:collapse;table-layout:fixed}
 
   <div id="match-modal">
     <div class="mm">
-      <h3>🔵 회계 반영 추정 — 확인</h3>
-      <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">아래 미반영 건이 회계 매출에 잡힌 것으로 보입니다. 내역을 확인하고 맞으면 제외하세요.</div>
+      <h3 id="mm-title">🔵 회계 반영 추정 — 확인</h3>
+      <div id="mm-sub" style="font-size:12px;color:#94a3b8;margin-bottom:14px">아래 미반영 건이 회계 매출에 잡힌 것으로 보입니다. 내역을 확인하고 맞으면 제외하세요.</div>
       <div id="mm-body"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
         <button onclick="closeMatch()" style="background:#e2e8f0;color:#334155;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer">닫기</button>
@@ -311,7 +311,7 @@ function flagMatches(){
       else if(prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.1){ if(!hit) hit=l; }         // 거래처+제품 일치+금액±10% → 자동(반올림·할인 흡수)
       else if(pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }                   // 제품명 다름·금액근접 → 추정(확인필요)
     });
-    if(hit){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(hit.amount); p.matchAuto=true; auto++; }
+    if(hit){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(hit.amount); p.matchAuto=true; p.matchLines=[{d:hit.date,c:hit.customer,p:hit.product,q:hit.qty,a:hit.amount}]; auto++; }
     else if(cand.length){ MATCHES[p.id]=cand; near++; }
   });
   return {auto:auto,near:near};
@@ -488,7 +488,7 @@ function renderReflected(){
     html+='<div style="font-weight:800;margin:12px 0 6px;color:#0f172a">📅 '+d+' <span class="note" style="font-weight:400">'+rows.length+'건 · '+won(sum)+'원 제외'+(d===(ACC&&ACC.reportDate)?' <span style="color:#dc2626">(오늘)</span>':'')+'</span></div>';
     html+='<div class="rpt-wrap"><table class="rpt"><colgroup><col style="width:11%"><col style="width:24%"><col style="width:24%"><col style="width:9%"><col style="width:18%"><col style="width:14%"></colgroup><tr><th class="g2">구분</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>복구</th></tr>';
     rows.forEach(function(p){
-      html+='<tr><td>'+p.region+(p.country?(' · '+esc(p.country)):'')+(p.matchAuto?'':' <span class="note">수동</span>')+'</td><td style="text-align:left">'+esc(p.customer)+'</td><td style="text-align:left">'+esc(p.product)+'</td><td>'+(p.qty||'')+'</td><td>'+won(p.amount)+'</td><td><button onclick="restorePend(\''+esc(p.id)+'\')" style="background:#dbeafe;color:#1d4ed8;border:0;border-radius:6px;padding:5px 11px;font-weight:700;cursor:pointer">↩ 복구</button></td></tr>';
+      html+='<tr><td>'+p.region+(p.country?(' · '+esc(p.country)):'')+(p.matchAuto?'':' <span class="note">수동</span>')+'</td><td style="text-align:left">'+esc(p.customer)+'</td><td style="text-align:left">'+esc(p.product)+'</td><td>'+(p.qty||'')+'</td><td>'+won(p.amount)+'</td><td style="white-space:nowrap"><button onclick="openReflectedDetail(\''+esc(p.id)+'\')" style="background:#ecfeff;color:#0e7490;border:0;border-radius:6px;padding:5px 9px;font-weight:700;cursor:pointer;margin-right:5px" title="회계 매출자료에 어떻게 반영됐는지 조회">🔍 회계</button><button onclick="restorePend(\''+esc(p.id)+'\')" style="background:#dbeafe;color:#1d4ed8;border:0;border-radius:6px;padding:5px 11px;font-weight:700;cursor:pointer">↩ 복구</button></td></tr>';
     });
     html+='</table></div>';
   });
@@ -499,6 +499,9 @@ function restorePend(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===
 function openMatch(pid){
   var p=null; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ p=PENDING[i]; break; } }
   if(!p) return;
+  document.getElementById('mm-title').innerHTML='🔵 회계 반영 추정 — 확인';
+  document.getElementById('mm-sub').textContent='아래 미반영 건이 회계 매출에 잡힌 것으로 보입니다. 내역을 확인하고 맞으면 제외하세요.';
+  document.getElementById('mm-confirm').style.display='';
   var hits=MATCHES[pid]||[];
   var h='<div style="font-size:12px;color:#64748b;margin-bottom:5px">미반영 입력 건</div>'+
     '<div class="mm-card">'+(p.country?(esc(p.country)+' · '):'')+'<b>'+esc(p.customer||'')+'</b> · '+esc(p.product||'')+' · <b>'+won(p.amount)+'원</b>'+(Number(p.qty)?(' · '+p.qty+'개'):'')+' · 예정 '+(p.expectedDate||'-')+'</div>'+
@@ -514,8 +517,30 @@ function closeMatch(){ document.getElementById('match-modal').style.display='non
 function confirmMatch(){
   var pid=document.getElementById('mm-confirm').getAttribute('data-id');
   var idx=-1; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ idx=i; break; } }
-  if(idx>=0){ PENDING[idx].status='반영됨'; PENDING[idx].reflectedDate=(ACC&&ACC.reportDate)||''; PENDING[idx].matchAmt=Math.round(Number(PENDING[idx].amount)||0); PENDING[idx].lock=true; savePending(false); }
+  if(idx>=0){ PENDING[idx].status='반영됨'; PENDING[idx].reflectedDate=(ACC&&ACC.reportDate)||''; PENDING[idx].matchAmt=Math.round(Number(PENDING[idx].amount)||0); PENDING[idx].matchLines=(MATCHES[pid]||[]).map(function(l){return {d:l.date,c:l.customer,p:l.product,q:l.qty,a:l.amount};}); PENDING[idx].lock=true; savePending(false); }
   delete MATCHES[pid]; closeMatch(); refresh();
+}
+// 자동/수동 제외된 건이 회계 매출자료에 어떻게 반영됐는지 조회(읽기전용)
+function openReflectedDetail(pid){
+  var p=null; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ p=PENDING[i]; break; } }
+  if(!p) return;
+  var ls=(p.matchLines&&p.matchLines.length)?p.matchLines:null;
+  if(!ls){  // 폴백: 현재 회계자료에서 거래처+제품/금액으로 재검색
+    var pc=norm(p.customer),pp=norm(p.product),pa=Math.round(Number(p.amount)||0); ls=[];
+    ((ACC&&ACC.lines)||[]).forEach(function(l){ if(norm(l.customer)!==pc) return; var la=Math.round(l.amount);
+      if((pp&&norm(l.product)===pp)||(pa>0&&Math.abs(la-pa)<=pa*0.1)) ls.push({d:l.date,c:l.customer,p:l.product,q:l.qty,a:l.amount}); });
+  }
+  document.getElementById('mm-title').innerHTML='🔍 회계 반영 내역 조회';
+  document.getElementById('mm-sub').textContent='이 미반영 건이 회계 매출자료에 아래와 같이 반영(제외)되었습니다.';
+  document.getElementById('mm-confirm').style.display='none';
+  var h='<div style="font-size:12px;color:#64748b;margin-bottom:5px">미반영 입력 건</div>'+
+    '<div class="mm-card">'+(p.country?(esc(p.country)+' · '):'')+'<b>'+esc(p.customer||'')+'</b> · '+esc(p.product||'')+' · <b>'+won(p.amount)+'원</b>'+(Number(p.qty)?(' · '+p.qty+'개'):'')+'</div>'+
+    '<div style="font-size:12.5px;color:#0f766e;font-weight:700;margin:14px 0 6px">↓ 회계 매출자료('+(p.reflectedDate||(ACC&&ACC.reportDate)||'')+') 반영 내역'+(p.matchAuto?' <span style="color:#94a3b8;font-weight:400">· 자동매칭</span>':'')+'</div>'+
+    '<table class="mm-tbl"><tr><th>일자</th><th>거래처</th><th>제품</th><th>수량</th><th style="text-align:right">금액</th></tr>'+
+    (ls.length?ls.map(function(l){ return '<tr><td>'+(l.d||'')+'</td><td>'+esc(l.c||'')+'</td><td>'+esc(l.p||'')+'</td><td>'+(l.q||'')+'</td><td style="text-align:right">'+won(l.a)+'원</td></tr>'; }).join(''):'<tr><td colspan="5" style="color:#9ca3af;text-align:center;padding:10px">현재 회계자료에서 해당 내역을 찾지 못했습니다 (다른 기간 자료일 수 있음).</td></tr>')+'</table>'+
+    '<div class="mm-note">제외가 잘못됐으면 닫고 「↩ 복구」를 누르면 미반영으로 되돌아옵니다.</div>';
+  document.getElementById('mm-body').innerHTML=h;
+  document.getElementById('match-modal').style.display='flex';
 }
 document.addEventListener('click',function(e){ var m=document.getElementById('match-modal'); if(m&&m.style.display==='flex'&&e.target===m) closeMatch(); });
 
