@@ -546,11 +546,17 @@ async function wtChangePw(){
 }
 function enterApp(user){
   _currentUser=user;
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('veil').classList.add('hidden');
-  document.getElementById('who').textContent=user.email;
-  loadReport();
+  // ── 접근 권한 검사: daily 권한(또는 관리자/마스터)만 진입 ──
+  _sb.from('crm_profiles').select('access,role').eq('id',user.id).maybeSingle().then(function(r){
+    var pf=(r&&r.data)||{};
+    var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
+    if(!allowed){ alert('소모품 일일매출보고 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); return; }
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('veil').classList.add('hidden');
+    document.getElementById('who').textContent=user.email;
+    loadReport();
+  }).catch(function(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); });
 }
 function showLogin(){
   document.getElementById('app').classList.add('hidden');
