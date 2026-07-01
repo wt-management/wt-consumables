@@ -569,23 +569,24 @@ function showView(v){
 }
 function enterApp(user){
   _user=user;
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('veil').classList.add('hidden');
-  document.getElementById('who').textContent=user.email;
-  // 업로드 가능한 사람만 미반영분 관리·업로드 노출
-  _sb.from('crm_profiles').select('dept,role').eq('id',user.id).maybeSingle().then(function(r){
+  // ── 접근 권한 검사: daily 권한(또는 관리자/마스터)만 진입 ──
+  _sb.from('crm_profiles').select('dept,role,access').eq('id',user.id).maybeSingle().then(function(r){
     var pf=(r&&r.data)||{};
-    // 업로드 권한 = 영업전략파트 전원(+ master)
+    var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
+    if(!allowed){ alert('일매출일보 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); return; }
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('veil').classList.add('hidden');
+    document.getElementById('who').textContent=user.email;
+    // 업로드 가능한 사람만 미반영분 관리·업로드 노출
     var canUp = user.email==='pmw0406@gmail.com' || String(pf.dept||'').indexOf('영업전략')>=0;
     var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
     var ub=document.getElementById('upload-btn'); if(ub) ub.style.display=canUp?'':'none';
     if(!canUp && _view==='pending') showView('report');
-    // 새로고침이면 머물던 탭 복원(미반영분 관리는 권한자만)
     var _nav=(performance.getEntriesByType('navigation')[0]||{}).type;
     if(_nav==='reload'){ var _sv=sessionStorage.getItem('ilbo_view'); if(_sv==='pending'&&canUp) showView('pending'); }
-  }).catch(function(){});
-  loadAll();
+    loadAll();
+  }).catch(function(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); });
 }
 function showLogin(){
   document.getElementById('app').classList.add('hidden');
