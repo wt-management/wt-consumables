@@ -312,21 +312,26 @@ function snapFig(acc){
   return {date:acc.reportDate,tot:tot,cons:cons,prod:tot-cons};
 }
 
-// 회계(ACC.lines)와 미반영을 거래처+제품+금액±10%로 대조해 '반영 추정' 플래그만 부여(자동 제외 X — 담당자 확인 후 제외)
+// 회계(ACC.lines)와 미반영 대조: 국내=거래처, 해외=국가(법인/딜러 표기달라도 국가로 매칭)+제품+금액.
+// 자동제외='국가/거래처+제품+금액 정확(±2% 반올림흡수)'만(오제외 방지), 금액근접은 '확인필요'로 표시(담당자 확인 후 제외).
 var MATCHES={};
+function _pCtry(name){ name=String(name||''); var i=name.indexOf('/'); if(i>=0) return norm(name.slice(0,i)); var m=name.match(/^(.+?)법인/); return m?norm(m[1]):''; }
 function flagMatches(){
   MATCHES={}; if(!ACC||!ACC.lines) return {auto:0,near:0}; var auto=0,near=0;
   PENDING.forEach(function(p){
     if(p.status!=='대기'||p.lock) return;                 // 대기·미잠금 건만 평가
     var pc=norm(p.customer),pp=norm(p.product),pa=Math.round(Number(p.amount)||0),pq=Number(p.qty)||0;
     if(!pc) return;
+    var isIntl=(p.region==='해외'), pcty=isIntl?(_pCtry(p.customer)||norm(p.country||'')):null;
     var hit=null, cand=[];
     ACC.lines.forEach(function(l){
-      if(norm(l.customer)!==pc) return;
       var la=Math.round(l.amount), lq=Number(l.qty)||0, prodEq=pp&&norm(l.product)===pp;
-      if(prodEq&&la===pa&&(pq===0||lq===pq)){ if(!hit) hit=l; }                 // 거래처+제품+금액 정확 → 자동
-      else if(prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.1){ if(!hit) hit=l; }         // 거래처+제품 일치+금액±10% → 자동(반올림·할인 흡수)
-      else if(pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }                   // 제품명 다름·금액근접 → 추정(확인필요)
+      var custOk = isIntl ? (pcty&&_pCtry(l.customer)===pcty) : (norm(l.customer)===pc);
+      if(custOk){
+        if(prodEq&&la===pa&&(pq===0||lq===pq)){ if(!hit) hit=l; }                 // 거래처/국가+제품+금액 정확 → 자동
+        else if(prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.02){ if(!hit) hit=l; }         // +금액±2%(반올림·소액할인) → 자동
+        else if(pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }                   // 제품다름·금액근접 → 확인필요
+      } else if(isIntl&&prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }    // 국가다르나 제품+금액근접 → 확인필요
     });
     if(hit){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(hit.amount); p.matchAuto=true; p.matchLines=[{d:hit.date,c:hit.customer,p:hit.product,q:hit.qty,a:hit.amount}]; auto++; }
     else if(cand.length){ MATCHES[p.id]=cand; near++; }
