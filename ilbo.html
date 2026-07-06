@@ -297,9 +297,11 @@ function handleUpload(input){
       var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       var parsed=parseAccounting(wb,file.name);
       if(!parsed.reportDate){ alert('날짜를 인식하지 못했습니다.'); return; }
-      // 전일 스냅샷 보존
-      if(ACC&&ACC.reportDate&&ACC.reportDate!==parsed.reportDate) parsed.prev=snapFig(ACC);
-      else if(ACC&&ACC.prev) parsed.prev=ACC.prev;
+      // 전일 스냅샷 보존 (같은 달일 때만 — 월이 바뀌면 전일=없음)
+      if(ACC&&ACC.curMonth===parsed.curMonth){
+        if(ACC.reportDate&&ACC.reportDate!==parsed.reportDate) parsed.prev=snapFig(ACC);
+        else if(ACC.prev) parsed.prev=ACC.prev;
+      }
       ACC=parsed; saveAccounting();
       var mm=flagMatches(); savePending(false);
       render(); input.value='';
