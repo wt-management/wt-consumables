@@ -159,10 +159,12 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     <div class="wrap" style="margin:18px auto 0;display:flex;justify-content:center">
     <div style="display:inline-flex;background:#e2e8f0;border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)">
       <button type="button" onclick="location.href='https://wt-management.github.io/wt-consumables/ilbo.html'"
-        style="border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:pointer;transition:all .15s"
+        style="border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 20px;border-radius:9px;cursor:pointer;transition:all .15s"
         onmouseover="this.style.background='rgba(255,255,255,.65)'" onmouseout="this.style.background='transparent'">📊 일 매출 일보</button>
-      <button type="button"
-        style="border:0;background:#2563eb;color:#fff;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:default;box-shadow:0 1px 3px rgba(37,99,235,.4)">🧴 소모품 매출 일보</button>
+      <button type="button" id="tab-report" onclick="showReport()"
+        style="border:0;background:#2563eb;color:#fff;font-size:14px;font-weight:700;padding:9px 20px;border-radius:9px;cursor:pointer;box-shadow:0 1px 3px rgba(37,99,235,.4)">🧴 소모품 매출 일보</button>
+      <button type="button" id="tab-womall" onclick="showWomall()"
+        style="border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 20px;border-radius:9px;cursor:pointer">🛒 국내 소모품·원텍몰</button>
     </div>
   </div>
   <div class="wrap" id="report-area">
@@ -388,6 +390,108 @@ function parseAllCharts(wb){
   }catch(e){ console.warn('차트 파싱 실패:', e); return []; }
 }
 
+// ══ 원텍몰 마감(raw) → 국내 소모품 매출 ═══════════════════
+var WOM_GRPS=['Oligio Face','Oligio Eye','X/Kiss Face','X/Kiss Eye','카트리지','Cooling','Return Pad','Coupling Oil','기타'];
+function womGrp(name){
+  name=String(name||'');
+  if(/Cartridge/i.test(name)) return '카트리지';
+  if(/Cooling/i.test(name)) return 'Cooling';
+  if(/Pad/i.test(name)) return 'Return Pad';
+  if(/Oil/i.test(name)) return 'Coupling Oil';
+  if(/OligioX|Kiss/i.test(name)) return /Eye/i.test(name)?'X/Kiss Eye':'X/Kiss Face';
+  if(/Oligio/i.test(name)) return /Eye/i.test(name)?'Oligio Eye':'Oligio Face';
+  return '기타';
+}
+function _ym(v){
+  if(v instanceof Date) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0');
+  if(typeof v==='number'){ var d=new Date(Math.round((v-25569)*86400*1000)); return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0'); }
+  return String(v||'').slice(0,7);
+}
+// 원텍몰 마감 파일인지 감지 (TIP 시트 없고 주문번호/상품명/품목실결제가 헤더 존재)
+function isWomall(wb){
+  if(wb.Sheets['TIP']) return false;
+  var ws=wb.Sheets[wb.SheetNames[0]]; if(!ws) return false;
+  var g=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  var h=(g[0]||[]).map(function(x){return String(x||'').trim();});
+  return h.indexOf('주문번호')>=0 && h.indexOf('상품명')>=0 && h.indexOf('품목실결제가')>=0;
+}
+function parseWomall(wb){
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var g=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  var H=(g[0]||[]).map(function(x){return String(x||'').trim();});
+  function ci(n){ return H.indexOf(n); }
+  var cNo=ci('주문번호'),cHosp=ci('주문자 이름'),cQty=ci('구매수량'),cName=ci('상품명'),cAmt=ci('품목실결제가'),cDate=ci('주문일'),cCanc=ci('취소승인일');
+  var grpMap={},prodMap={},hospMap={},monMap={},totAmt=0,totQty=0,orders={},minD='',maxD='',cancAmt=0,cancN=0;
+  for(var i=1;i<g.length;i++){
+    var r=g[i]||[]; if(r[cNo]==null||String(r[cNo]).trim()==='') continue;
+    var amt=num(r[cAmt]), qty=num(r[cQty]);
+    if(cCanc>=0 && r[cCanc]!=null && String(r[cCanc]).trim()!==''){ cancAmt+=amt; cancN++; continue; } // 취소 제외
+    var nm=String(r[cName]||'').trim(), grp=womGrp(nm), ym=_ym(r[cDate]), hosp=String(r[cHosp]||'').trim()||'(미상)';
+    totAmt+=amt; totQty+=qty; orders[String(r[cNo])]=1;
+    var dstr=fmtDate(r[cDate]); if(dstr){ if(!minD||dstr<minD)minD=dstr; if(!maxD||dstr>maxD)maxD=dstr; }
+    if(!grpMap[grp])grpMap[grp]={qty:0,amt:0}; grpMap[grp].qty+=qty; grpMap[grp].amt+=amt;
+    if(!prodMap[nm])prodMap[nm]={grp:grp,qty:0,amt:0}; prodMap[nm].qty+=qty; prodMap[nm].amt+=amt;
+    if(!hospMap[hosp])hospMap[hosp]={qty:0,amt:0}; hospMap[hosp].qty+=qty; hospMap[hosp].amt+=amt;
+    if(!monMap[ym])monMap[ym]={amt:0,qty:0,grps:{}}; monMap[ym].amt+=amt; monMap[ym].qty+=qty;
+    monMap[ym].grps[grp]=(monMap[ym].grps[grp]||0)+amt;
+  }
+  function sortAmt(map){ return Object.keys(map).map(function(k){var o=map[k];return {name:k,grp:o.grp,qty:o.qty,amt:o.amt};}).sort(function(a,b){return b.amt-a.amt;}); }
+  var byGrp=WOM_GRPS.filter(function(gp){return grpMap[gp];}).map(function(gp){return {name:gp,qty:grpMap[gp].qty,amt:grpMap[gp].amt};});
+  var byMonth=Object.keys(monMap).sort().map(function(k){var o=monMap[k];return {ym:k,amt:o.amt,qty:o.qty,grps:o.grps};});
+  return { type:'womall', period:{from:minD,to:maxD}, orders:Object.keys(orders).length,
+    totAmt:totAmt, totQty:totQty, cancAmt:cancAmt, cancN:cancN,
+    byGrp:byGrp, byProduct:sortAmt(prodMap), byHosp:sortAmt(hospMap), byMonth:byMonth,
+    uploadedAt:new Date().toISOString() };
+}
+function renderWomall(R){
+  if(!R){ document.getElementById('report-area').innerHTML='<div id="empty"><div class="big">🧴</div><div>원텍몰 마감 파일을 업로드하면 국내 소모품 매출이 표시됩니다.</div></div>'; return; }
+  var h='<div class="rpt">';
+  h+='<div class="rpt-head" style="background:linear-gradient(135deg,#166534,#16a34a)"><h2>국내 소모품 매출 · 원텍몰 기준</h2>'
+    +'<div class="date">기간 '+esc(R.period.from||'-')+' ~ '+esc(R.period.to||'-')+' · 주문 '+Number(R.orders).toLocaleString()+'건 · 취소 '+Number(R.cancN||0)+'건 제외</div>'
+    +'<div class="total">총 매출 <b>'+fmtWonFull(R.totAmt)+'</b> · 총수량 '+Number(R.totQty).toLocaleString()+'개</div></div>';
+  // 1. 제품군별
+  h+='<div class="sec"><h3><span class="n">1</span> 제품군별 매출</h3><div class="scroll"><table>';
+  h+='<tr><th>제품군</th><th>수량</th><th>매출</th><th>비중</th></tr>';
+  R.byGrp.forEach(function(x){ var pct=R.totAmt?x.amt/R.totAmt:0;
+    h+='<tr><td class="lbl">'+esc(x.name)+'</td><td>'+Number(x.qty).toLocaleString()+'</td><td>'+fmtWonFull(x.amt)+'</td><td>'+(pct*100).toFixed(1)+'%</td></tr>'; });
+  h+='<tr class="sum"><td class="lbl">합계</td><td>'+Number(R.totQty).toLocaleString()+'</td><td>'+fmtWonFull(R.totAmt)+'</td><td>100%</td></tr>';
+  h+='</table></div></div>';
+  // 2. 월별 추이
+  h+='<div class="sec"><h3><span class="n">2</span> 월별 추이</h3><div class="scroll"><table>';
+  h+='<tr><th>월</th><th>매출</th><th>수량</th></tr>';
+  R.byMonth.forEach(function(m){ h+='<tr><td class="lbl">'+esc(m.ym)+'</td><td>'+fmtWonFull(m.amt)+'</td><td>'+Number(m.qty).toLocaleString()+'</td></tr>'; });
+  h+='</table></div></div>';
+  // 3. 제품별 상세
+  h+='<div class="sec"><h3><span class="n">3</span> 제품별 상세</h3><div class="scroll"><table>';
+  h+='<tr><th>상품명</th><th>제품군</th><th>수량</th><th>매출</th></tr>';
+  R.byProduct.forEach(function(x){ h+='<tr><td class="lbl">'+esc(x.name)+'</td><td class="muted">'+esc(x.grp)+'</td><td>'+Number(x.qty).toLocaleString()+'</td><td>'+fmtWonFull(x.amt)+'</td></tr>'; });
+  h+='</table></div></div>';
+  // 4. 병원별 Top 30
+  h+='<div class="sec"><h3><span class="n">4</span> 병원별 매출 (Top 30)</h3><div class="scroll"><table>';
+  h+='<tr><th>병원(주문자)</th><th>수량</th><th>매출</th></tr>';
+  R.byHosp.slice(0,30).forEach(function(x){ h+='<tr><td class="lbl">'+esc(x.name)+'</td><td>'+Number(x.qty).toLocaleString()+'</td><td>'+fmtWonFull(x.amt)+'</td></tr>'; });
+  h+='</table></div><div class="sub">* 원텍몰 마감 원본 자동 집계 · 국내 온라인 소모품 · 실결제가 기준</div></div>';
+  h+='</div>';
+  document.getElementById('report-area').innerHTML=h;
+}
+
+// ── 뷰 전환(종합 소모품 보고 / 원텍몰 국내) ──────────────
+var _curView='report';
+function setTabs(){
+  var tr=document.getElementById('tab-report'), tw=document.getElementById('tab-womall');
+  function on(b){ if(!b)return; b.style.background='#2563eb'; b.style.color='#fff'; b.style.boxShadow='0 1px 3px rgba(37,99,235,.4)'; }
+  function off(b){ if(!b)return; b.style.background='transparent'; b.style.color='#475569'; b.style.boxShadow='none'; }
+  if(_curView==='womall'){ on(tw); off(tr); } else { on(tr); off(tw); }
+}
+function showReport(){ _curView='report'; try{sessionStorage.setItem('cons_view','report');}catch(e){} setTabs(); loadReport(); }
+function showWomall(){ _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e){} setTabs(); loadWomall(); }
+function loadWomall(){
+  _sb.from('consumables_report').select('data').eq('key','womall').maybeSingle().then(function(r){
+    if(r.error){ document.getElementById('report-area').innerHTML='<div id="empty"><div class="big">⚠️</div><div>원텍몰 데이터를 불러오지 못했습니다: '+esc(r.error.message)+'</div></div>'; return; }
+    renderWomall(r.data && r.data.data);
+  });
+}
+
 // ── 차트 렌더 ─────────────────────────────────────────
 var _chartInstances=[];
 var _MON=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -552,6 +656,15 @@ function handleUpload(input){
   reader.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result, {type:'array', cellDates:true});
+      // 원텍몰 마감 파일이면 → 국내 소모품 매출 뷰
+      if(isWomall(wb)){
+        var W=parseWomall(wb);
+        if(!W.byProduct.length){ alert('원텍몰 데이터를 읽지 못했습니다. 파일을 확인해주세요.'); return; }
+        _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e2){} setTabs(); renderWomall(W);
+        _sb.from('consumables_report').upsert({key:'womall', data:W, updated_at:new Date().toISOString()}, {onConflict:'key'})
+          .then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else toast('✅ 원텍몰 국내 소모품 매출 갱신 완료 ('+fmtWonFull(W.totAmt)+')'); });
+        return;
+      }
       var R=parseTIP(wb);
       R.charts=parseAllCharts(wb);
       if(!R.daily || !R.daily.total){ alert('보고서 데이터를 읽지 못했습니다. TIP 시트 형식을 확인해주세요.'); return; }
@@ -629,7 +742,8 @@ function enterApp(user){
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
     document.getElementById('who').textContent=user.email;
-    loadReport();
+    var _v=''; try{_v=sessionStorage.getItem('cons_view')||'';}catch(e){}
+    if(_v==='womall'){ showWomall(); } else { _curView='report'; setTabs(); loadReport(); }
   }).catch(function(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); });
 }
 function showLogin(){
