@@ -155,18 +155,8 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     <span class="logo">🏢 전사 일 매출 일보</span>
     <span class="who" id="who"></span>
     <span class="sp"></span>
-    <select onchange="if(this.value)location.href=this.value">
+    <select id="wt-site-sel">
       <option value="" style="color:#000">🔁 사이트 이동</option>
-      <option value="https://wt-management.github.io/wontech/total.html" style="color:#000">전사 종합 경영현황</option>
-      <option value="https://wt-management.github.io/wontech/#app=korea" style="color:#000">한국 영업</option>
-      <option value="https://wt-management.github.io/wontech-intl/" style="color:#000">해외 영업</option>
-      <option value="https://wt-management.github.io/wtj-management/" style="color:#000">일본법인 관리</option>
-      <option value="https://wt-management.github.io/wt-corps/us.html" style="color:#000">미국법인 관리</option>
-      <option value="https://wt-management.github.io/wt-corps/th.html" style="color:#000">태국법인 관리</option>
-      <option value="" style="color:#000" disabled>● 일일매출보고 (현재)</option>
-      <option value="https://wt-management.github.io/sales-portfolio/" style="color:#000">Sales Portfolio</option>
-      <option value="https://wt-management.github.io/demo-schedule/" style="color:#000">데모 일정</option>
-      <option value="https://wt-management.github.io/wontech/#app=admin" style="color:#000">관리자 페이지</option>
     </select>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
     <button id="upload-btn" class="primary" style="display:none" onclick="goUploadUnified()">📤 회계 매출자료 업로드</button>
@@ -643,6 +633,50 @@ function showView(v){
   if(v==='pending'){ if(pen)pen.classList.remove('hidden'); document.getElementById('report').classList.add('hidden'); document.getElementById('empty').classList.add('hidden'); }
   else { if(pen)pen.classList.add('hidden'); if(ACC){ document.getElementById('report').classList.remove('hidden'); document.getElementById('empty').classList.add('hidden'); } else { document.getElementById('empty').classList.remove('hidden'); document.getElementById('report').classList.add('hidden'); } }
 }
+/* ===== 권한 기반 사이트 이동 (site_registry 공통) — WT_SWITCHER ===== */
+var _WT_MASTER='pmw0406@gmail.com';
+var _WT_OWN=["daily"];                 /* 이 사이트 자신의 registry key(들) */
+var _WT_WONTECH='https://wt-management.github.io/wontech/';
+var _wtReg=null, _wtItems=[];
+async function _wtLoadReg(){ if(_wtReg) return _wtReg; try{ var r=await _sb.from('site_registry').select('*').order('sort_order'); _wtReg=r.data||[]; }catch(e){ _wtReg=[]; } return _wtReg; }
+function _wtVis(s,ac,ad){ if(ac.indexOf(s.key)>=0) return true; if(s.admin_bypass&&ad) return true; if(s.extra_visible_rule){ try{ return !!(new Function('access','isAdmin','return ('+s.extra_visible_rule+')'))(ac,ad); }catch(e){ return false; } } return false; }
+async function _wtGo(i){
+  var s=_wtItems[i]; if(!s) return;
+  var u=(s.key==='korea'||s.url==='LOCAL')?_WT_WONTECH:s.url;
+  var extra=s.key==='korea'?'&app=korea':(s.key==='admin'?'&app=admin':'');
+  var sess=null; try{ sess=(await _sb.auth.getSession()).data.session; }catch(e){}
+  if(sess && u.indexOf('#')<0) u+='#at='+encodeURIComponent(sess.access_token)+'&rt='+encodeURIComponent(sess.refresh_token);
+  u+=extra; location.href=u;
+}
+async function _wtRenderSwitcher(){
+  await _wtLoadReg();
+  var ac=[], ad=false;
+  try{ var ses=(await _sb.auth.getSession()).data.session;
+    if(ses&&ses.user){ if(ses.user.email===_WT_MASTER) ad=true;
+      var p=await _sb.from('crm_profiles').select('access,role').eq('id',ses.user.id).maybeSingle();
+      if(p&&p.data){ ac=(p.data.access||'').split(',').map(function(x){return x.trim();}).filter(Boolean); if(p.data.role==='admin') ad=true; }
+    }
+  }catch(e){}
+  var seen={};
+  _wtItems=_wtReg.filter(function(s){
+    if(_WT_OWN.indexOf(s.key)>=0) return false;
+    if(!_wtVis(s,ac,ad)) return false;
+    var dest=(s.key==='korea'||s.url==='LOCAL')?'wontech':s.url; if(seen[dest]) return false; seen[dest]=1;
+    return true;
+  }).sort(function(a,b){ return a.key==='total'?-1:(b.key==='total'?1:(a.sort_order-b.sort_order)); });
+  if(ad){ _wtItems.push({key:'admin',badge:'ADM',grad_from:'#6b7280',title:'관리자 페이지',url:_WT_WONTECH}); }
+  var esc=function(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var box=document.querySelector("#wt-site-sel"); if(!box) return;
+  if("select"==='select'){
+    box.innerHTML='<option value="">사이트 이동…</option>'+_wtItems.map(function(s,i){ return '<option value="'+i+'">'+esc(s.badge)+' · '+esc(s.title)+'</option>'; }).join('');
+    box.onchange=function(){ var v=box.value; if(v!=='') _wtGo(+v); };
+  } else {
+    box.innerHTML=_wtItems.map(function(s,i){
+      return '<div class="sw-item" onclick="_wtGo('+i+')"><span class="sw-badge" style="background:'+(s.grad_from||'#64748b')+'">'+esc(s.badge)+'</span><span style="flex:1">'+esc(s.title)+'</span><i class="bi bi-arrow-right" style="font-size:11px;opacity:.5"></i></div>';
+    }).join('');
+  }
+}
+
 function enterApp(user){
   _user=user;
   // ── 접근 권한 검사: daily 권한(또는 관리자/마스터)만 진입 ──
@@ -654,6 +688,7 @@ function enterApp(user){
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
     document.getElementById('who').textContent=user.email;
+    _wtRenderSwitcher();
     // 업로드 가능한 사람만 미반영분 관리·업로드 노출
     var canUp = user.email==='pmw0406@gmail.com' || String(pf.dept||'').indexOf('영업전략')>=0;
     var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
