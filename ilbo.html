@@ -239,6 +239,8 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 </div>
 
 <script>
+/* WT_NAV: SSO 토큰 해시(#at=..&rt=..)는 이 파일에서 파싱하지 않으므로 최우선 제거(딥링크 해시는 보존) — 아래 코드가 실패해도 토큰이 URL·에러로그에 남지 않도록 블록 첫 문장 */
+try{ if(location.hash.indexOf('at=')===1||location.hash.indexOf('&rt=')>0){ history.replaceState(null,'',location.pathname+location.search); } }catch(e){}
 var SUPABASE_URL='https://mhfacbsittfdkknwybhc.supabase.co';
 var SUPABASE_ANON='sb_publishable_aPMOOWAlyJlMcP1ZM_gpPA_jlrcvCRd';
 var _sb=supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -250,7 +252,7 @@ var DIVS=['국내제품','국내소모품','해외영업','Surgical','B2C','고�
 var SECT2=['국내영업','해외영업','Surgical','B2C','고객만족'];                              // 사업부별 표 행
 function divRegion(div){ return div==='해외영업'?'해외':'국내'; }
 
-var ACC=null, PENDING=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report';
+var ACC=null, PENDING=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report', _canUp=false;
 
 function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
 function numv(x){ return (x===''||x==null)?'':(Number(x)||0).toLocaleString(); }
@@ -381,7 +383,6 @@ function loadAll(){
     var _fm=flagMatches();
     render();
     if(_fm&&_fm.auto>0){ savePending(false); }   // 새로 자동매칭된 건 즉시 저장(대시보드 반영)
-    try{ if(sessionStorage.getItem('ilbo_view')==='pending') showView('pending'); }catch(e){}
   });
 }
 
@@ -629,16 +630,25 @@ function doLogin(){
   });
   _arm();
 })();
-function doLogout(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
-function showView(v){
+function doLogout(){ try{ sessionStorage.removeItem('ilbo_view'); }catch(e){} _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
+function showView(v,push){
   _view=v;
   try{ sessionStorage.setItem('ilbo_view', v); }catch(e){}
+  if(push!==false && !(history.state&&history.state.p===v)){ try{ history.pushState({p:v},'','#'+v); }catch(e){} }
   var pen=document.getElementById('pending-page');
   document.getElementById('tg-report').className=v==='report'?'on':'';
   document.getElementById('tg-pending').className=v==='pending'?'on':'';
   if(v==='pending'){ if(pen)pen.classList.remove('hidden'); document.getElementById('report').classList.add('hidden'); document.getElementById('empty').classList.add('hidden'); }
   else { if(pen)pen.classList.add('hidden'); if(ACC){ document.getElementById('report').classList.remove('hidden'); document.getElementById('empty').classList.add('hidden'); } else { document.getElementById('empty').classList.remove('hidden'); document.getElementById('report').classList.add('hidden'); } }
 }
+/* WT_NAV: 뒤로가기 — 오버레이 우선 닫기, state 기반 뷰 복원(권한 게이트 포함) */
+window.addEventListener('popstate',function(e){
+  var m=document.getElementById('match-modal');
+  if(m&&m.style.display==='flex'){ closeMatch(); try{ history.pushState({p:_view},'','#'+_view); }catch(err){} return; }
+  if(e.state&&e.state.p){ var v=e.state.p; if(v==='pending'&&!_canUp) v='report'; if(v==='report'||v==='pending') showView(v,false); }
+});
+/* WT_NAV: bfcache — 로그아웃/만료/계정전환 후 뒤로가기로 이전 계정 화면 노출 차단 */
+window.addEventListener('pageshow',function(e){ if(e.persisted){ _sb.auth.getSession().then(function(r){ var s=r&&r.data&&r.data.session; if(!s||(_user&&s.user&&s.user.id!==_user.id)) location.reload(); }); } });
 /* ===== 권한 기반 사이트 이동 (site_registry 공통) — WT_SWITCHER ===== */
 var _WT_MASTER='pmw0406@gmail.com';
 var _WT_OWN=["daily"];                 /* 이 사이트 자신의 registry key(들) */
@@ -689,7 +699,7 @@ function enterApp(user){
   _sb.from('crm_profiles').select('dept,role,access').eq('id',user.id).maybeSingle().then(function(r){
     var pf=(r&&r.data)||{};
     var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
-    if(!allowed){ alert('일매출일보 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); return; }
+    if(!allowed){ alert('일매출일보 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); return; }
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
@@ -699,18 +709,25 @@ function enterApp(user){
     var canUp = user.email==='pmw0406@gmail.com' || String(pf.dept||'').indexOf('영업전략')>=0;
     var tp=document.getElementById('tg-pending'); if(tp) tp.style.display=canUp?'':'none';
     var ub=document.getElementById('upload-btn'); if(ub) ub.style.display=canUp?'':'none';
-    if(!canUp && _view==='pending') showView('report');
-    var _nav=(performance.getEntriesByType('navigation')[0]||{}).type;
-    if(_nav==='reload'){ var _sv=sessionStorage.getItem('ilbo_view'); if(_sv==='pending'&&canUp) showView('pending'); }
+    _canUp=canUp;
+    /* WT_NAV 부팅: 딥링크 해시 > (reload/back_forward + 저장뷰) > 기본 report — 첫 렌더는 replaceState로 seed */
+    var _init='report', _h=(location.hash||'').replace(/^#/,'');
+    if(_h==='report'||(_h==='pending'&&canUp)){ _init=_h; }
+    else{
+      var _nav=(performance.getEntriesByType('navigation')[0]||{}).type;
+      if(_nav==='reload'||_nav==='back_forward'){ var _sv=null; try{ _sv=sessionStorage.getItem('ilbo_view'); }catch(e){} if(_sv==='pending'&&canUp) _init='pending'; }
+    }
+    showView(_init,false);
+    try{ history.replaceState({p:_init},'','#'+_init); }catch(e){}
     loadAll();
-  }).catch(function(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); });
+  }).catch(function(){ _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); });
 }
 function showLogin(){
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login').classList.remove('hidden');
   document.getElementById('veil').classList.add('hidden');
 }
-window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else location.href='https://wt-management.github.io/wontech/'; }); });
+window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else location.replace('https://wt-management.github.io/wontech/'); }); });
 </script>
 <script>function printPDF(){var t=document.title;var r=function(){document.title=t;window.removeEventListener('afterprint',r);};window.addEventListener('afterprint',r);window.print();}</script>
 <button id="pdf-fab" onclick="printPDF()" title="이 페이지를 PDF로 추출">📄 PDF</button>

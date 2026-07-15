@@ -473,8 +473,9 @@ function setTabs(){
   function off(b){ if(!b)return; b.style.background='transparent'; b.style.color='#475569'; b.style.boxShadow='none'; }
   if(_curView==='womall'){ on(tw); off(tr); } else { on(tr); off(tw); }
 }
-function showReport(){ _curView='report'; try{sessionStorage.setItem('cons_view','report');}catch(e){} setTabs(); loadReport(); }
-function showWomall(){ _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e){} setTabs(); loadWomall(); }
+function _navPush(key){ try{ if(!(history.state && history.state.p===key)) history.pushState({p:key},'','#'+key); }catch(e){} }
+function showReport(push){ _curView='report'; try{sessionStorage.setItem('cons_view','report');}catch(e){} if(push!==false) _navPush('report'); setTabs(); loadReport(); }
+function showWomall(push){ _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e){} if(push!==false) _navPush('womall'); setTabs(); loadWomall(); }
 function loadWomall(){
   _sb.from('consumables_report').select('data').eq('key','womall').maybeSingle().then(function(r){
     if(r.error){ document.getElementById('report-area').innerHTML='<div id="empty"><div class="big">⚠️</div><div>원텍몰 데이터를 불러오지 못했습니다: '+esc(r.error.message)+'</div></div>'; return; }
@@ -650,7 +651,7 @@ function handleUpload(input){
       if(isWomall(wb)){
         var W=parseWomall(wb);
         if(!W.byProduct.length){ alert('원텍몰 데이터를 읽지 못했습니다. 파일을 확인해주세요.'); return; }
-        _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e2){} setTabs(); renderWomall(W);
+        _curView='womall'; try{sessionStorage.setItem('cons_view','womall');}catch(e2){} _navPush('womall'); setTabs(); renderWomall(W);
         _sb.from('consumables_report').upsert({key:'womall', data:W, updated_at:new Date().toISOString()}, {onConflict:'key'})
           .then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else toast('✅ 원텍몰 국내 소모품 매출 갱신 완료 ('+fmtWonFull(W.totAmt)+')'); });
         return;
@@ -711,7 +712,7 @@ function doLogin(){
   });
   _arm();
 })();
-function doLogout(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
+function doLogout(){ try{sessionStorage.removeItem('cons_view');}catch(e){} _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); }
 async function wtChangePw(){
   var np=prompt('새 비밀번호를 입력하세요 (6자 이상)');
   if(np===null) return;
@@ -770,15 +771,27 @@ function enterApp(user){
   _sb.from('crm_profiles').select('access,role').eq('id',user.id).maybeSingle().then(function(r){
     var pf=(r&&r.data)||{};
     var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
-    if(!allowed){ alert('소모품 일일매출보고 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); return; }
+    if(!allowed){ alert('소모품 일일매출보고 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); return; }
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
     document.getElementById('who').textContent=user.email;
-    var _v=''; try{_v=sessionStorage.getItem('cons_view')||'';}catch(e){}
-    if(_v==='womall'){ showWomall(); } else { _curView='report'; setTabs(); loadReport(); }
+    // WT_NAV 부팅: 딥링크 해시 > (reload/back_forward 시) 저장 뷰 > 기본 report
+    var initKey='report';
+    var hk=(location.hash||'').replace(/^#/,'');
+    if(hk==='report'||hk==='womall'){ initKey=hk; }
+    else{
+      var navType='navigate';
+      try{ var ne=performance.getEntriesByType('navigation'); if(ne&&ne[0]&&ne[0].type) navType=ne[0].type; }catch(e){}
+      if(navType==='reload'||navType==='back_forward'){
+        var _v=''; try{_v=sessionStorage.getItem('cons_view')||'';}catch(e){}
+        if(_v==='womall'||_v==='report') initKey=_v;
+      }
+    }
+    try{ history.replaceState({p:initKey},'','#'+initKey); }catch(e){}
+    if(initKey==='womall'){ showWomall(false); } else { showReport(false); }
     _wtRenderSwitcher();
-  }).catch(function(){ _sb.auth.signOut().then(function(){ location.href='https://wt-management.github.io/wontech/'; }); });
+  }).catch(function(){ _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); });
 }
 function showLogin(){
   document.getElementById('app').classList.add('hidden');
@@ -787,10 +800,21 @@ function showLogin(){
 }
 
 // ── 부팅 ──────────────────────────────────────────────
+// WT_NAV: SSO 토큰해시 등 미지원 해시는 부팅 즉시 제거(딥링크 #report/#womall만 보존)
+(function(){ var h=location.hash||''; if(h && h!=='#report' && h!=='#womall'){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} } })();
+// WT_NAV: popstate — 피드백 패널 열림 시 닫기만, state 유효 시 해당 뷰(푸시 없이)
+window.addEventListener('popstate',function(e){
+  var fb=document.getElementById('wt-fb-panel');
+  if(fb && fb.style.display==='block'){ fb.style.display='none'; try{ history.pushState({p:_curView},'','#'+_curView); }catch(e2){} return; }
+  if(!_currentUser) return;
+  if(e.state && e.state.p){ if(e.state.p==='womall') showWomall(false); else showReport(false); }
+});
+// WT_NAV: bfcache 복원 시 세션 없으면 리로드(로그아웃 후 뒤로가기 화면노출 차단)
+window.addEventListener('pageshow',function(e){ if(e.persisted){ _sb.auth.getSession().then(function(r){ if(!(r&&r.data&&r.data.session)) location.reload(); }); } });
 window.addEventListener('load', function(){
   _sb.auth.getSession().then(function(r){
     if(r.data && r.data.session) enterApp(r.data.session.user);
-    else location.href='https://wt-management.github.io/wontech/';
+    else location.replace('https://wt-management.github.io/wontech/');
   });
 });
 </script>
