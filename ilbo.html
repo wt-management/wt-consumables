@@ -597,6 +597,9 @@ function openReflectedDetail(pid){
 document.addEventListener('click',function(e){ var m=document.getElementById('match-modal'); if(m&&m.style.display==='flex'&&e.target===m) closeMatch(); });
 
 // ── 인증/부팅 ─────────────────────────────────────────
+var CENTRAL='https://wt-management.github.io/wontech/';
+/* 중앙 로그인으로 이동(세션 없음). ret에는 해시를 절대 포함하지 않음 — #at/rt 토큰 유출·오염 방지 */
+function _goCentralWithRet(){ location.replace(CENTRAL+'#ret='+encodeURIComponent(location.origin+location.pathname+location.search)); }
 function doLogin(){
   var email=document.getElementById('login-email').value.trim();
   var pw=document.getElementById('login-pw').value;
@@ -699,7 +702,7 @@ function enterApp(user){
   _sb.from('crm_profiles').select('dept,role,access').eq('id',user.id).maybeSingle().then(function(r){
     var pf=(r&&r.data)||{};
     var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
-    if(!allowed){ alert('일매출일보 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); return; }
+    if(!allowed){ alert('일매출일보 접근 권한이 없습니다.'); location.replace(CENTRAL); return; }  /* 권한 없음: ret 없이(무한 루프 방지) · signOut 금지(전 사이트 공유 세션 파괴) */
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
@@ -720,14 +723,11 @@ function enterApp(user){
     showView(_init,false);
     try{ history.replaceState({p:_init},'','#'+_init); }catch(e){}
     loadAll();
-  }).catch(function(){ _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); });
+  }).catch(function(){ location.replace(CENTRAL); });  /* 프로필 조회 실패: 게이트 실패로 간주 → ret 없이 중앙(signOut 금지) */
 }
-function showLogin(){
-  document.getElementById('app').classList.add('hidden');
-  document.getElementById('login').classList.remove('hidden');
-  document.getElementById('veil').classList.add('hidden');
-}
-window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else location.replace('https://wt-management.github.io/wontech/'); }); });
+/* 자체 로그인 화면은 더 이상 표시하지 않는다 — 중앙 로그인으로 통일 */
+function showLogin(){ _goCentralWithRet(); }
+window.addEventListener('load',function(){ _sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) enterApp(r.data.session.user); else _goCentralWithRet(); }); });
 </script>
 <script>function printPDF(){var t=document.title;var r=function(){document.title=t;window.removeEventListener('afterprint',r);};window.addEventListener('afterprint',r);window.print();}</script>
 <button id="pdf-fab" onclick="printPDF()" title="이 페이지를 PDF로 추출">📄 PDF</button>

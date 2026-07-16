@@ -678,6 +678,9 @@ function loadReport(){
 }
 
 // ── 인증 ──────────────────────────────────────────────
+var CENTRAL='https://wt-management.github.io/wontech/';
+/* 중앙 로그인으로 이동(세션 없음). ret에는 해시를 절대 포함하지 않음 — #at/rt 토큰 유출·오염 방지 */
+function _goCentralWithRet(){ location.replace(CENTRAL+'#ret='+encodeURIComponent(location.origin+location.pathname+location.search)); }
 function doLogin(){
   var email=document.getElementById('login-email').value.trim();
   var pw=document.getElementById('login-pw').value;
@@ -771,7 +774,7 @@ function enterApp(user){
   _sb.from('crm_profiles').select('access,role').eq('id',user.id).maybeSingle().then(function(r){
     var pf=(r&&r.data)||{};
     var allowed = user.email==='pmw0406@gmail.com' || pf.role==='admin' || String(pf.access||'').includes('daily');
-    if(!allowed){ alert('소모품 일일매출보고 접근 권한이 없습니다.'); _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); return; }
+    if(!allowed){ alert('소모품 일일매출보고 접근 권한이 없습니다.'); location.replace(CENTRAL); return; }  /* 권한 없음: ret 없이(무한 루프 방지) · signOut 금지(전 사이트 공유 세션 파괴) */
     document.getElementById('login').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('veil').classList.add('hidden');
@@ -791,13 +794,10 @@ function enterApp(user){
     try{ history.replaceState({p:initKey},'','#'+initKey); }catch(e){}
     if(initKey==='womall'){ showWomall(false); } else { showReport(false); }
     _wtRenderSwitcher();
-  }).catch(function(){ _sb.auth.signOut().then(function(){ location.replace('https://wt-management.github.io/wontech/'); }); });
+  }).catch(function(){ location.replace(CENTRAL); });  /* 프로필 조회 실패: 게이트 실패로 간주 → ret 없이 중앙(signOut 금지) */
 }
-function showLogin(){
-  document.getElementById('app').classList.add('hidden');
-  document.getElementById('login').classList.remove('hidden');
-  document.getElementById('veil').classList.add('hidden');
-}
+/* 자체 로그인 화면은 더 이상 표시하지 않는다 — 중앙 로그인으로 통일 */
+function showLogin(){ _goCentralWithRet(); }
 
 // ── 부팅 ──────────────────────────────────────────────
 // WT_NAV: SSO 토큰해시 등 미지원 해시는 부팅 즉시 제거(딥링크 #report/#womall만 보존)
@@ -814,7 +814,7 @@ window.addEventListener('pageshow',function(e){ if(e.persisted){ _sb.auth.getSes
 window.addEventListener('load', function(){
   _sb.auth.getSession().then(function(r){
     if(r.data && r.data.session) enterApp(r.data.session.user);
-    else location.replace('https://wt-management.github.io/wontech/');
+    else _goCentralWithRet();
   });
 });
 </script>
