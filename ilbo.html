@@ -421,7 +421,7 @@ function render(){
 
   // 1-1 요약
   function chgCell(now,was){ if(was==null) return '-'; var d=now-was; if(d===0) return '0'; var s=d>0?'▲':'▼'; return '<span class="'+(d>0?'up':'dn')+'">'+s+' '+won(Math.abs(d))+'</span>'; }
-  var s1='<tr><th class="g2" style="width:22%">구분</th><th style="width:13%">전일 금액</th><th class="hi" style="width:13%">금일 금액</th><th style="width:11%">달성율(%)</th><th style="width:11%">증감</th><th class="g2" style="width:30%">비고 (목표)</th></tr>';
+  var s1='<tr><th class="g2" style="width:22%">구분</th><th style="width:13%">전일 금액</th><th class="hi" style="width:13%">금일 금액</th><th style="width:11%">달성률(%)</th><th style="width:11%">증감</th><th class="g2" style="width:30%">비고 (목표)</th></tr>';
   s1+='<tr><td class="lbl">① 제품군 회계실적</td><td>'+(prev?won(prev.prod):'-')+'</td><td class="hi">'+won(prod)+'</td><td>'+pctTxt(prod,prodTgt)+'</td><td style="text-align:right">'+chgCell(prod,prev?prev.prod:null)+'</td><td style="text-align:left">※ '+cur+'월 제품군 목표 : '+(prodTgt?eok(prodTgt):'미설정')+'</td></tr>';
   s1+='<tr><td class="lbl">② 소모품 회계실적</td><td>'+(prev?won(prev.cons):'-')+'</td><td class="hi">'+won(cons)+'</td><td>'+pctTxt(cons,consTgt)+'</td><td style="text-align:right">'+chgCell(cons,prev?prev.cons:null)+'</td><td style="text-align:left">※ '+cur+'월 소모품 목표 : '+(consTgt?eok(consTgt):'미설정')+'</td></tr>';
   s1+='<tr class="sum"><td class="lbl">계 [ ①+② ]</td><td>'+(prev?won(prev.tot):'-')+'</td><td class="hi">'+won(total)+'</td><td>'+pctTxt(total,tgtTotal)+'</td><td style="text-align:right">'+chgCell(total,prev?prev.tot:null)+'</td><td style="text-align:left">※ '+cur+'월 종합 목표 : '+(tgtTotal?eok(tgtTotal):'미설정')+'</td></tr>';
@@ -503,9 +503,10 @@ function renderPend(){
       colg='<colgroup><col style="width:15%"><col style="width:20%"><col style="width:17%"><col style="width:7%"><col style="width:15%"><col style="width:17%"><col style="width:9%"></colgroup>';
       head='<tr><th>유형</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>납품예정일</th><th></th></tr>'; cspan=7;
     }
-    var sub=0,cntW=0,cntM=0,cntMch=0;
+    var sub=0,cntW=0,cntMch=0;
+    var cntM=PENDING.filter(function(p){return p.region===region&&p.status==='반영됨';}).length;   // 반영됨은 아래 목록에서 필터돼 map서 못 셈 → 여기서 별도 집계
     var body=PENDING.map(function(p,i){return {p:p,i:i};}).filter(function(x){return x.p.region===region&&x.p.status!=='반영됨'&&x.p.status!=='취소';}).sort(function(a,b){return ((MATCHES[b.p.id]&&notDone(b.p))?1:0)-((MATCHES[a.p.id]&&notDone(a.p))?1:0);}).map(function(x){
-      var p=x.p,i=x.i; if(notDone(p)){ sub+=Number(p.amount)||0; cntW++; } if(p.status==='반영됨') cntM++;
+      var p=x.p,i=x.i; if(notDone(p)){ sub+=Number(p.amount)||0; cntW++; }
       var dis=p.status==='반영됨'; var mch=MATCHES[p.id]; if(mch&&notDone(p)) cntMch++;
       var c='<td><select onchange="pendSet('+i+",'type',this.value)\">"+typeSel(region,p.type)+'</select></td>';
       if(intl) c+='<td><input value="'+esc(p.country)+'" placeholder="국가" onchange="pendSet('+i+",'country',this.value)\"></td>";
