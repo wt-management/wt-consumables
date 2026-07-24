@@ -269,7 +269,7 @@ function numv(x){ return (x===''||x==null)?'':(Math.round(Number(x)||0)).toLocal
 function eok(v){ v=Number(v)||0; return (v/1e8).toFixed(v>=1e10?0:1)+'억'; }
 function norm(s){ return String(s==null?'':s).replace(/[\s()（）\[\]·.,_\/\-]/g,'').toLowerCase(); }
 function prodName(pn){ pn=String(pn||''); var i=pn.indexOf('.'); return (i>=0?pn.slice(i+1):pn).trim(); }
-function esc(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function uid(){ return 'p'+Math.random().toString(36).slice(2,9)+(_pendSeq++); }
 function notDone(p){ return p.status!=='반영됨'&&p.status!=='취소'; }
 function pctTxt(a,b){ b=Number(b)||0; if(!b) return '-'; return (a/b*100).toFixed(1)+'%'; }
