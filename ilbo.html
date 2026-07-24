@@ -222,7 +222,7 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
       <div class="note" style="margin-bottom:12px">유형 <b>완료</b>=납품(선적)완료·회계 미반영 / <b>예정</b>=미납품(미선적). 회계에 잡히면 업로드 시 자동반영(제외)됩니다.</div>
       <div id="datalists"></div>
 
-      <div class="sec-h" style="margin-top:4px">✅ 자동제외된 내역 <span class="muted">· 회계에 <b>거래처+제품+금액(+수량) 정확일치</b>로 자동 제외 · 최근 업로드분만 펼침(과거는 아래 접힘) · 잘못 빠졌으면 ↩복구</span></div>
+      <div class="sec-h" style="margin-top:4px">✅ 자동제외된 내역 <span class="muted">· 회계에 <b>거래처+제품+금액(+수량) 정확일치</b>로 자동 제외 · 최근 업로드분만 펼침(과거는 아래 접힘) · 확인한 건은 <b>✓확인</b>으로 숨김 · 잘못 빠졌으면 ↩복구</span></div>
       <div id="reflected-box" style="margin-bottom:8px"></div>
 
       <div class="pend-grid">
@@ -537,10 +537,18 @@ function addPendRow(region){ PENDING.unshift({id:uid(),region:region,type:'예�
 function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } PENDING[i][k]=v; refresh(); }
 function delPend(i){ PENDING.splice(i,1); refresh(); }
 function refresh(){ if(ACC) render(); else renderPend(); }
+var _showAck=false;
+function toggleShowAck(){ _showAck=!_showAck; renderReflected(); }
+function ackReflected(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].ack=true; break; } } savePending(false); renderReflected(); }
+function unackReflected(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].ack=false; break; } } savePending(false); renderReflected(); }
 function renderReflected(){
   var box=document.getElementById('reflected-box'); if(!box) return;
-  var refl=PENDING.filter(function(p){return p.status==='반영됨';});
-  if(!refl.length){ box.innerHTML='<div class="note" style="padding:6px 2px">자동반영(제외)된 건이 없습니다. 회계 업로드 시 거래처+제품+금액이 정확히 일치하면 자동 제외됩니다.</div>'; return; }
+  var all=PENDING.filter(function(p){return p.status==='반영됨';});
+  if(!all.length){ box.innerHTML='<div class="note" style="padding:6px 2px">자동반영(제외)된 건이 없습니다. 회계 업로드 시 거래처+제품+금액이 정확히 일치하면 자동 제외됩니다.</div>'; return; }
+  var acked=all.filter(function(p){return p.ack;});
+  var toolbar=acked.length?('<div style="text-align:right;margin:2px 0 8px"><button onclick="toggleShowAck()" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">'+(_showAck?'확인한 건 숨기기':('✓ 확인한 '+acked.length+'건 보기'))+'</button></div>'):'';
+  var refl=_showAck?all:all.filter(function(p){return !p.ack;});
+  if(!refl.length){ box.innerHTML=toolbar+'<div class="note" style="padding:6px 2px">확인하지 않은 자동제외 건이 없습니다.'+(acked.length?(' (확인함 '+acked.length+'건)'):'')+'</div>'; return; }
   var byd={}; refl.forEach(function(p){ var d=p.reflectedDate||'(미상)'; (byd[d]=byd[d]||[]).push(p); });
   var real=Object.keys(byd).filter(function(d){return d!=='(미상)';}).sort().reverse();
   var order=real.concat(byd['(미상)']?['(미상)']:[]);   // 최근 실날짜 우선, (미상)은 맨 뒤
@@ -548,17 +556,20 @@ function renderReflected(){
   order.forEach(function(d,idx){
     var rows=byd[d], sum=0; rows.forEach(function(p){sum+=Number(p.amount)||0;});
     var g='<div style="font-weight:800;margin:12px 0 6px;color:#0f172a">📅 '+d+' <span class="note" style="font-weight:400">'+rows.length+'건 · '+won(sum)+'원 제외'+(d===(ACC&&ACC.reportDate)?' <span style="color:#dc2626">(이번 업로드)</span>':'')+'</span></div>';
-    g+='<div class="rpt-wrap"><table class="rpt"><colgroup><col style="width:11%"><col style="width:24%"><col style="width:24%"><col style="width:9%"><col style="width:18%"><col style="width:14%"></colgroup><tr><th class="g2">구분</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>복구</th></tr>';
+    g+='<div class="rpt-wrap"><table class="rpt"><colgroup><col style="width:10%"><col style="width:22%"><col style="width:21%"><col style="width:8%"><col style="width:16%"><col style="width:23%"></colgroup><tr><th class="g2">구분</th><th>거래처</th><th>제품</th><th>수량</th><th>금액</th><th>처리</th></tr>';
     rows.forEach(function(p){
-      g+='<tr><td>'+p.region+(p.country?(' · '+esc(p.country)):'')+(p.matchAuto?'':' <span class="note">수동</span>')+'</td><td style="text-align:left">'+esc(p.customer)+'</td><td style="text-align:left">'+esc(p.product)+'</td><td>'+(p.qty||'')+'</td><td>'+won(p.amount)+'</td><td style="white-space:nowrap"><button onclick="openReflectedDetail(\''+esc(p.id)+'\')" style="background:#ecfeff;color:#0e7490;border:0;border-radius:6px;padding:5px 9px;font-weight:700;cursor:pointer;margin-right:5px" title="회계 매출자료에 어떻게 반영됐는지 조회">🔍 회계</button><button onclick="restorePend(\''+esc(p.id)+'\')" style="background:#dbeafe;color:#1d4ed8;border:0;border-radius:6px;padding:5px 11px;font-weight:700;cursor:pointer">↩ 복구</button></td></tr>';
+      var actBtn = p.ack
+        ? '<span style="color:#16a34a;font-weight:700;font-size:12px;margin-right:6px">✓ 확인됨</span><button onclick="unackReflected(\''+esc(p.id)+'\')" style="background:#f1f5f9;color:#475569;border:0;border-radius:6px;padding:5px 9px;font-weight:700;cursor:pointer;margin-right:5px" title="확인 취소 — 목록에 다시 표시">되돌리기</button>'
+        : '<button onclick="ackReflected(\''+esc(p.id)+'\')" style="background:#dcfce7;color:#166534;border:0;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer;margin-right:5px" title="확인 완료 — 목록에서 숨김">✓ 확인</button>';
+      g+='<tr><td>'+p.region+(p.country?(' · '+esc(p.country)):'')+(p.matchAuto?'':' <span class="note">수동</span>')+'</td><td style="text-align:left">'+esc(p.customer)+'</td><td style="text-align:left">'+esc(p.product)+'</td><td>'+(p.qty||'')+'</td><td>'+won(p.amount)+'</td><td style="white-space:nowrap">'+actBtn+'<button onclick="openReflectedDetail(\''+esc(p.id)+'\')" style="background:#ecfeff;color:#0e7490;border:0;border-radius:6px;padding:5px 9px;font-weight:700;cursor:pointer;margin-right:5px" title="회계 매출자료에 어떻게 반영됐는지 조회">🔍 회계</button><button onclick="restorePend(\''+esc(p.id)+'\')" style="background:#dbeafe;color:#1d4ed8;border:0;border-radius:6px;padding:5px 11px;font-weight:700;cursor:pointer">↩ 복구</button></td></tr>';
     });
     g+='</table></div>';
     if(idx===0){ html+=g; } else { olderHtml+=g; oc+=rows.length; oa+=sum; }   // 최근분만 펼침, 나머지는 접기
   });
   if(olderHtml){ html+='<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700;color:#475569;padding:8px 2px">📁 이전 제외내역 전체 보기 ('+oc+'건 · '+won(oa)+'원)</summary><div style="padding-top:4px">'+olderHtml+'</div></details>'; }
-  box.innerHTML=html;
+  box.innerHTML=toolbar+html;
 }
-function restorePend(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].status='대기'; PENDING[i].lock=true; PENDING[i].reflectedDate=''; PENDING[i].matchAmt=null; PENDING[i].matchAuto=false; break; } } savePending(false); refresh(); }
+function restorePend(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].status='대기'; PENDING[i].lock=true; PENDING[i].reflectedDate=''; PENDING[i].matchAmt=null; PENDING[i].matchAuto=false; PENDING[i].ack=false; break; } } savePending(false); refresh(); }
 // ── 회계반영 추정 확인 모달 ──
 function openMatch(pid){
   var p=null; for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===pid){ p=PENDING[i]; break; } }
