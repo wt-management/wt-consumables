@@ -263,7 +263,7 @@ function divRegion(div){ return div==='해외영업'?'해외':'국내'; }
 var ACC=null, PENDING=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report', _canUp=false;
 
 function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
-function numv(x){ return (x===''||x==null)?'':(Number(x)||0).toLocaleString(); }
+function numv(x){ return (x===''||x==null)?'':(Math.round(Number(x)||0)).toLocaleString(); }
 function eok(v){ v=Number(v)||0; return (v/1e8).toFixed(v>=1e10?0:1)+'억'; }
 function norm(s){ return String(s==null?'':s).replace(/[\s()（）\[\]·.,_\/\-]/g,'').toLowerCase(); }
 function prodName(pn){ pn=String(pn||''); var i=pn.indexOf('.'); return (i>=0?pn.slice(i+1):pn).trim(); }
