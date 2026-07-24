@@ -328,7 +328,7 @@ function handleUpload(input){
         else if(ACC.prev) parsed.prev=ACC.prev;
       }
       ACC=parsed; saveAccounting();
-      var mm=flagMatches(); savePending(false);
+      var mm=flagMatches(true); savePending(false);
       render(); input.value='';
       alert('✅ '+parsed.reportDate+' 회계자료 반영 완료'+(mm.auto?('\n✅ 정확일치 '+mm.auto+'건 자동 제외 (아래 "자동반영 내역"에서 확인·복구 가능)'):'')+(mm.near?('\n🔵 확인필요 '+mm.near+'건 — 노란색 행 클릭하여 검토'):''));
     }catch(err){ alert('업로드 처리 오류: '+err.message); console.error(err); }
@@ -345,19 +345,23 @@ function snapFig(acc){
 // 자동제외='국가/거래처+제품+금액 정확(±2% 반올림흡수)'만(오제외 방지), 금액근접은 '확인필요'로 표시(담당자 확인 후 제외).
 var MATCHES={}, INTLACC=null;
 function _pCtry(name){ name=String(name||''); var i=name.indexOf('/'); if(i>=0) return norm(name.slice(0,i)); var m=name.match(/^(.+?)법인/); return m?norm(m[1]):''; }
+function _pdate(s){ if(!s) return null; var d=new Date(s); return isNaN(d.getTime())?null:d; }
 // 해외 회계 원장(intl.INTL2026.countries[].clientData[].txns) → 대조 라인(연간 누적). 해외는 ACC.lines에 거의 없어 별도 소스.
 function _intlLines(intlAcc){ var out=[]; var C=(intlAcc&&intlAcc.INTL2026&&intlAcc.INTL2026.countries)||{};
   Object.keys(C).forEach(function(cc){ var cd=(C[cc]&&C[cc].clientData)||{};
     Object.keys(cd).forEach(function(nm){ (cd[nm].txns||[]).forEach(function(t){ out.push({region:'해외',customer:nm,product:t[1],qty:t[2],amount:t[3],date:t[0]}); }); }); }); return out; }
-function flagMatches(){
+function flagMatches(doAuto){
   MATCHES={}; var lines=((ACC&&ACC.lines)||[]).concat(_intlLines(INTLACC)); if(!lines.length) return {auto:0,near:0}; var auto=0,near=0;
   PENDING.forEach(function(p){
     if(p.status!=='대기'||p.lock) return;                 // 대기·미잠금 건만 평가
+    if(p.type==='예정') return;                           // 예정(미납품·미선적)은 아직 회계에 있을 수 없음 → 대조 제외(오탐방지)
     var pc=norm(p.customer),pp=norm(p.product),pa=Math.round(Number(p.amount)||0),pq=Number(p.qty)||0;
     if(!pc) return;
     var isIntl=(p.region==='해외'), pcty=isIntl?(_pCtry(p.customer)||norm(p.country||'')):null;
+    var _pd=_pdate(p.expectedDate), _pdMs=_pd?_pd.getTime():null;
     var hit=null, cand=[];
     lines.forEach(function(l){
+      if(_pdMs){ var _ld=_pdate(l.date); if(_ld&&_ld.getTime()<_pdMs-31*864e5) return; }   // 회계라인이 선적/납품일보다 1개월+ 과거면 다른(과거) 거래 → 대조 제외
       var la=Math.round(l.amount), lq=Number(l.qty)||0, prodEq=pp&&norm(l.product)===pp;
       var custOk = isIntl ? (pcty&&_pCtry(l.customer)===pcty) : (norm(l.customer)===pc);
       if(custOk){
@@ -366,7 +370,7 @@ function flagMatches(){
         else if(pa>0&&Math.abs(la-pa)<=pa*0.1&&(!isIntl||p.type==='완료')){ cand.push(l); }   // 제품다름·금액근접 → 확인필요(해외는 선적'완료'만, 예정 오탐방지)
       } else if(isIntl&&p.type==='완료'&&prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }    // 국가다르나 제품+금액근접 → 확인필요(완료만)
     });
-    if(hit){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(hit.amount); p.matchAuto=true; p.matchLines=[{d:hit.date,c:hit.customer,p:hit.product,q:hit.qty,a:hit.amount}]; auto++; }
+    if(hit){ if(doAuto){ p.status='반영됨'; p.reflectedDate=(ACC.reportDate||''); p.matchAmt=Math.round(hit.amount); p.matchAuto=true; p.matchLines=[{d:hit.date,c:hit.customer,p:hit.product,q:hit.qty,a:hit.amount}]; auto++; } else { MATCHES[p.id]=[hit]; near++; } }  // 회계 새 업로드(doAuto)에서만 자동제외, 평상시 로드는 '반영추정'만
     else if(cand.length){ MATCHES[p.id]=cand; near++; }
   });
   return {auto:auto,near:near};
@@ -388,9 +392,8 @@ function loadAll(){
     if(res[3].data&&res[3].data.data) CONSTGT=res[3].data.data;
     if(res[4]&&res[4].data&&res[4].data.data) INTLACC=res[4].data.data;
     PENDING.forEach(function(p){ if(!p.region) p.region=(p.div==='해외영업')?'해외':'국내'; if(!p.type) p.type='예정'; });
-    var _fm=flagMatches();
+    flagMatches(false);   // 평상시 로드는 자동제외 안 함(신선한 미반영 보존) — '반영추정'만 표시
     render();
-    if(_fm&&_fm.auto>0){ savePending(false); }   // 새로 자동매칭된 건 즉시 저장(대시보드 반영)
   });
 }
 
