@@ -306,16 +306,17 @@ function parseAccounting(wb,fname){
   var consMonthly={};                       // 전 지역 소모품(품번 기준) 월별
   var lines=[]; var products={'국내':{},'해외':{}};
   var SHEETS=['상품매출','제품매출','기타매출'];
+  function _xlDate(v){ if(typeof v==='string'){ var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?v.slice(0,10):null; } if(typeof v==='number'&&v>20000&&v<80000){ var dt=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000); return dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0')+'-'+String(dt.getUTCDate()).padStart(2,'0'); } if(v&&v instanceof Date&&!isNaN(v)){ return v.getUTCFullYear()+'-'+String(v.getUTCMonth()+1).padStart(2,'0')+'-'+String(v.getUTCDate()).padStart(2,'0'); } return null; }
   wb.SheetNames.forEach(function(sn){
     if(SHEETS.indexOf(String(sn).trim())<0) return;   // 회계 매출 3탭만 처리(타 시트 무시)
     var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true}); var cur=null;
     for(var i=1;i<rows.length;i++){
       var r=rows[i]; if(!r) continue;
       var adq=r[0],memo=r[1],cname=r[3],debit=Number(r[5])||0,credit=Number(r[6])||0,dept=r[8],pnum=r[10],qty=Number(r[11])||0;
-      if(typeof adq==='string'&&/^\d{4}-\d{2}-\d{2}/.test(adq)) cur=adq.slice(0,10);
+      var _dd=_xlDate(adq); if(_dd) cur=_dd;
       if(dept==null||dept==='') continue;
       if(typeof memo==='string'&&memo.trim().charAt(0)==='[') continue;
-      var d=(typeof adq==='string'&&/^\d{4}/.test(adq))?adq.slice(0,10):cur; if(!d) continue;
+      var d=_dd||cur; if(!d) continue;
       var mo=parseInt(d.slice(5,7),10); var amt=credit-debit; var div=classify(dept,pnum);
       monthly[div][mo]=(monthly[div][mo]||0)+amt;
       if(CONS_RE.test(String(pnum||''))) consMonthly[mo]=(consMonthly[mo]||0)+amt;
