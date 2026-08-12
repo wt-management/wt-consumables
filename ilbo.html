@@ -270,6 +270,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
           </div>
         </div>
       </div>
+      <div class="sec-h" style="margin-top:18px">↩️ 전월 이월 조정 <span class="muted">· 마감된 달의 <b>납품(선적) 잔액</b> — 회계가 납품보다 앞서 잡히면 음수. 일보 해당 월 시트의 ④ 납품(선적) 값을 그대로 넣습니다. <b>당월 미반영 합계에는 들어가지 않고</b>, 전사 대시보드의 그 달 실적에만 반영됩니다.</span></div>
+      <div class="rb-tools" style="margin-bottom:6px"><button onclick="addCarryRow()">＋ 조정 행 추가</button></div>
+      <div style="overflow-x:auto"><table class="ptable" id="carry-tbl"></table></div>
+
       <div class="save-bar"><button onclick="savePending(true)">💾 미반영분 저장</button></div>
     </div>
   </div>
@@ -289,7 +293,7 @@ var DIVS=['국내제품','국내소모품','해외영업','Surgical','B2C','고�
 var SECT2=['국내영업','해외영업','Surgical','B2C','고객만족'];                              // 사업부별 표 행
 function divRegion(div){ return div==='해외영업'?'해외':'국내'; }
 
-var ACC=null, PENDING=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report', _canUp=false;
+var ACC=null, PENDING=[], CARRY=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report', _canUp=false;
 
 function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
 function numv(x){ return (x===''||x==null)?'':(Math.round(Number(x)||0)).toLocaleString(); }
@@ -407,7 +411,7 @@ function flagMatches(doAuto){
 }
 
 function saveAccounting(){ return _sb.from('cons_cache').upsert({key:'ilbo_acc',data:ACC},{onConflict:'key'}).then(function(r){ if(r.error) console.warn('acc',r.error); }); }
-function savePending(alertOk){ return _sb.from('cons_cache').upsert({key:'ilbo_pending',data:{rows:PENDING,updatedAt:ACC?ACC.reportDate:''}},{onConflict:'key'}).then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else if(alertOk) alert('💾 미반영분 저장 완료'); }); }
+function savePending(alertOk){ return _sb.from('cons_cache').upsert({key:'ilbo_pending',data:{rows:PENDING,carry:CARRY,updatedAt:ACC?ACC.reportDate:''}},{onConflict:'key'}).then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else if(alertOk) alert('💾 미반영분 저장 완료'); }); }
 function loadAll(){
   return Promise.all([
     _sb.from('cons_cache').select('data').eq('key','ilbo_acc').maybeSingle(),
@@ -418,12 +422,13 @@ function loadAll(){
   ]).then(function(res){
     if(res[0].data&&res[0].data.data) ACC=res[0].data.data;
     if(res[1].data&&res[1].data.data&&res[1].data.data.rows) PENDING=res[1].data.data.rows;
+    if(res[1].data&&res[1].data.data&&res[1].data.data.carry) CARRY=res[1].data.data.carry;
     if(res[2].data&&res[2].data.data) TARGETS=res[2].data.data;
     if(res[3].data&&res[3].data.data) CONSTGT=res[3].data.data;
     if(res[4]&&res[4].data&&res[4].data.data) INTLACC=res[4].data.data;
     PENDING.forEach(function(p){ if(!p.region) p.region=(p.div==='해외영업')?'해외':'국내'; if(!p.type) p.type='예정'; });
     flagMatches(false);   // 평상시 로드는 자동제외 안 함(신선한 미반영 보존) — '반영추정'만 표시
-    render();
+    render(); renderCarry();
   });
 }
 
@@ -566,7 +571,32 @@ function renderPend(){
 function addPendRow(region){ PENDING.unshift({id:uid(),region:region,type:'예정',country:'',customer:'',product:'',qty:'',amount:'',expectedDate:'',status:'대기',memo:''}); refresh(); }
 function pendSet(i,k,v){ if(!PENDING[i])return; if(k==='qty'||k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } PENDING[i][k]=v; refresh(); }
 function delPend(i){ PENDING.splice(i,1); refresh(); }
-function refresh(){ if(ACC) render(); else renderPend(); }
+
+// ── 전월 이월 조정 ────────────────────────────────────────
+// 마감된 달의 ④ 납품(선적) 잔액. PENDING 과 별도로 두는 이유:
+// 같은 목록에 넣으면 월 구분이 없어 당월 미반영 합계(pendSum)까지 오염된다.
+function addCarryRow(){ CARRY.unshift({ym:'',region:'국내',item:'제품',amount:'',memo:''}); renderCarry(); }
+function carrySet(i,k,v){ if(!CARRY[i])return; if(k==='amount'){ v=String(v).replace(/[^0-9.\-]/g,''); v=v===''?'':Number(v); } CARRY[i][k]=v; renderCarry(); }
+function delCarry(i){ CARRY.splice(i,1); renderCarry(); }
+function renderCarry(){
+  var t=document.getElementById('carry-tbl'); if(!t) return;
+  var sum=0; CARRY.forEach(function(c){ sum+=Number(c.amount)||0; });
+  var head='<colgroup><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:18%"><col style="width:38%"><col style="width:9%"></colgroup>'+
+    '<tr><th>대상 월</th><th>구분</th><th>품목</th><th>금액</th><th>메모</th><th></th></tr>';
+  var body=CARRY.map(function(c,i){
+    var rg=['국내','해외'].map(function(o){return '<option'+(c.region===o?' selected':'')+'>'+o+'</option>';}).join('');
+    var it=['제품','소모품'].map(function(o){return '<option'+(c.item===o?' selected':'')+'>'+o+'</option>';}).join('');
+    return '<tr><td><input type="month" value="'+esc(c.ym||'')+'" onchange="carrySet('+i+",'ym',this.value)\"></td>"+
+      '<td><select onchange="carrySet('+i+",'region',this.value)\">"+rg+'</select></td>'+
+      '<td><select onchange="carrySet('+i+",'item',this.value)\">"+it+'</select></td>'+
+      '<td><input inputmode="numeric" value="'+numv(c.amount)+'" onchange="carrySet('+i+",'amount',this.value)\" style=\"text-align:right\"></td>"+
+      '<td><input value="'+esc(c.memo||'')+'" onchange="carrySet('+i+",'memo',this.value)\"></td>"+
+      '<td><button class="del-btn" onclick="delCarry('+i+')">✕</button></td></tr>';
+  }).join('');
+  t.innerHTML=head+(body||'<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:14px">조정할 내역이 없으면 비워두세요</td></tr>')+
+    (CARRY.length?'<tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td style="text-align:right;font-weight:700;color:'+(sum<0?'#b91c1c':'#166534')+'">'+won(sum)+'</td><td colspan="2"></td></tr>':'');
+}
+function refresh(){ if(ACC) render(); else renderPend(); renderCarry(); }
 var _showAck=false;
 function toggleShowAck(){ _showAck=!_showAck; renderReflected(); }
 function ackReflected(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].ack=true; break; } } savePending(false); renderReflected(); }
