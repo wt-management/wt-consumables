@@ -453,6 +453,9 @@ function s2Acc(name,mo){ if(name==='국내영업') return dAcc('국내제품',mo
 function s2Tgt(name,mo){ if(name==='국내영업') return dTgt('국내제품',mo)+dTgt('국내소모품',mo); return dTgt(name,mo); }
 function s2Cum(name,a,b){ var s=0; for(var m=a;m<=b;m++) s+=s2Acc(name,m); return s; }
 function s2Region(name){ return name==='해외영업'?'해외':'국내'; }
+// 전월 이월 조정(CARRY) 기간합 — 일보 엑셀 ①(누적회계+마감조정)/⑨와 정합 위해 누적 컬럼에 가산 (당월 컬럼엔 미적용)
+function carrySum(name,a,b){ if(name!=='국내영업'&&name!=='해외영업') return 0; var rg=s2Region(name), yy=String(ACC&&ACC.reportDate||'2026').slice(0,4), s=0;
+  (CARRY||[]).forEach(function(c){ var ym=String(c.ym||''); if(ym.slice(0,4)!==yy) return; var m=parseInt(ym.slice(5,7),10); if(!(m>=a&&m<=b)) return; if((c.region||'국내')!==rg) return; s+=Number(c.amount)||0; }); return s; }
 // 미반영(pending): 사업부 매핑 — 국내→국내영업, 해외→해외영업
 function pendSum(name,type){ var rg=s2Region(name); var s=0; PENDING.forEach(function(p){ if(!notDone(p))return; if(name!=='국내영업'&&name!=='해외영업')return; if(p.region!==rg)return; if(type&&p.type!==type)return; s+=Number(p.amount)||0; }); return s; }
 
@@ -490,8 +493,8 @@ function render(){
   var d2='<tr><th class="g2" style="width:10%">사업부명</th><th style="'+W+'">전월까지 누적(회계)</th><th style="'+W+'">'+cur+'월 매출목표</th><th class="hi" style="'+W+'">'+cur+'월 매출액(회계)</th><th style="'+W+'">납품(선적)</th><th style="'+W+'">미납품(미선적)</th><th class="hi" style="'+W+'">'+cur+'월 예상</th><th style="width:8%">달성률</th><th style="'+W+'">연간 누적(예상)</th></tr>';
   var T={cum:0,tgt:0,acc:0,yes:0,no:0,exp:0,ycum:0};
   SECT2.forEach(function(n){
-    var cum=s2Cum(n,1,cur-1), tgt=s2Tgt(n,cur), acc=s2Acc(n,cur), yes=pendSum(n,'완료'), no=pendSum(n,'예정'), exp=acc+yes+no;
-    var ycum=s2Cum(n,1,12)+yes+no;
+    var cum=s2Cum(n,1,cur-1)+carrySum(n,1,cur-1), tgt=s2Tgt(n,cur), acc=s2Acc(n,cur), yes=pendSum(n,'완료'), no=pendSum(n,'예정'), exp=acc+yes+no;
+    var ycum=s2Cum(n,1,12)+yes+no+carrySum(n,1,12);
     if(cum===0&&tgt===0&&acc===0&&exp===0) return;
     T.cum+=cum;T.tgt+=tgt;T.acc+=acc;T.yes+=yes;T.no+=no;T.exp+=exp;T.ycum+=ycum;
     d2+='<tr><td class="lbl">'+n+'</td><td>'+won(cum)+'</td><td>'+won(tgt)+'</td><td class="hi">'+won(acc)+'</td><td>'+(yes?won(yes):'-')+'</td><td>'+(no?won(no):'-')+'</td><td class="hi">'+won(exp)+'</td><td>'+pctTxt(exp,tgt)+'</td><td>'+won(ycum)+'</td></tr>';
