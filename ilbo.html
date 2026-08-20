@@ -412,7 +412,7 @@ function flagMatches(doAuto){
       var custOk = isIntl ? (pcty&&_pCtry(l.customer)===pcty) : (norm(l.customer)===pc);
       if(custOk){
         if(prodEq&&la===pa&&(pq===0||lq===pq)){ if(!hit) hit=l; }                 // 거래처/국가+제품+금액 정확 → 자동
-        else if(prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.02){ if(!isIntl||_nmLike(p.customer,l.customer)){ if(!hit) hit=l; } else cand.push(l); }         // +금액±2%(반올림·소액할인) → 자동. 단 해외는 거래처명까지 닮아야 자동, 국가만 같으면 확인필요
+        else if(prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.02&&(pq===0||lq===pq)){ if(!isIntl||_nmLike(p.customer,l.customer)){ if(!hit) hit=l; } else cand.push(l); }         // +금액±2%(반올림·소액할인) → 자동. 수량도 일치해야(15대vs16대 단가유사 이종로트 오탐 방지) · 해외는 거래처명까지 닮아야 자동
         else if(pa>0&&Math.abs(la-pa)<=pa*0.1&&(!isIntl||p.type==='완료')){ cand.push(l); }   // 제품다름·금액근접 → 확인필요(해외는 선적'완료'만, 예정 오탐방지)
       } else if(isIntl&&p.type==='완료'&&prodEq&&pa>0&&Math.abs(la-pa)<=pa*0.1){ cand.push(l); }    // 국가다르나 제품+금액근접 → 확인필요(완료만)
     });
