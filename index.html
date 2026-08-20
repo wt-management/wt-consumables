@@ -597,7 +597,8 @@ function renderTrendBlock(title, blk, isDate){
 function renderTopAccounts(tops){
   if(!tops || !tops.length) return '';
   var h=' <div class="sec"><h3><span class="n">5</span> 국내 올해 상위 구매처 (Top 10)</h3><div class="scroll"><table>';
-  h+='<tr><th>거래처명</th><th>2026 누계</th><th>2025 동기간</th><th>전년 동기간 대비</th><th>2025 연간 누계</th></tr>';
+  var _cy=(function(){ try{ var y=Number(CONS&&CONS.dataYear)||0; return y||2026; }catch(e){ return 2026; } })();   // 데이터 연도
+  h+='<tr><th>거래처명</th><th>'+_cy+' 누계</th><th>'+(_cy-1)+' 동기간</th><th>전년 동기간 대비</th><th>'+(_cy-1)+' 연간 누계</th></tr>';
   tops.slice(0,10).forEach(function(t){
     var vs;
     if(t.vs==null || t.vs==='') vs='<td class="muted">-</td>';

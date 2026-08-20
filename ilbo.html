@@ -228,7 +228,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     </div>
 
     <div id="report" class="hidden">
-      <div class="rpt-title">2026년 일 매 출 일 보</div>
+      <div class="rpt-title"><span id="rpt-yr">2026</span>년 일 매 출 일 보</div>
       <div class="rpt-meta"><span></span><span>보고일자 : <b id="basis"></b> · 단위: 원, VAT 제외</span></div>
 
       <div class="sec-h">1-1. <span id="m1"></span>月 예상 (요약)</div>
@@ -611,7 +611,10 @@ function renderCarry(){
   t.innerHTML=head+(body||'<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:14px">조정할 내역이 없으면 비워두세요</td></tr>')+
     (CARRY.length?'<tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td style="text-align:right;font-weight:700;color:'+(sum<0?'#b91c1c':'#166534')+'">'+won(sum)+'</td><td colspan="2"></td></tr>':'');
 }
-function refresh(){ if(ACC) render(); else renderPend(); renderCarry(); }
+function refresh(){
+  // 제목 연도 = 회계 기준일 연도 (2026 으로 박아두면 해가 바뀌어도 그대로다)
+  try{ var _ry=document.getElementById('rpt-yr'); if(_ry&&ACC&&ACC.reportDate) _ry.textContent=String(ACC.reportDate).slice(0,4); }catch(e){}
+   if(ACC) render(); else renderPend(); renderCarry(); }
 var _showAck=false;
 function toggleShowAck(){ _showAck=!_showAck; renderReflected(); }
 function ackReflected(id){ for(var i=0;i<PENDING.length;i++){ if(PENDING[i].id===id){ PENDING[i].ack=true; break; } } savePending(false); renderReflected(); }
