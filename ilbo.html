@@ -249,6 +249,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div id="pending-page" class="hidden">
       <div class="sec-h">📝 미반영분 (납품/선적 완료·예정) 입력</div>
       <div class="note" style="margin-bottom:12px">유형 <b>완료</b>=납품(선적)완료·회계 미반영 / <b>예정</b>=미납품(미선적). 회계에 잡히면 업로드 시 자동반영(제외)됩니다.</div>
+      <div class="rb-tools" style="margin-bottom:12px">
+        <input type="file" id="ilbo-src-input" accept=".xlsx,.xls" class="hidden" onchange="handleIlboSrcUpload(this)">
+        <button onclick="document.getElementById('ilbo-src-input').click()">📋 일매출일보에서 미반영분 가져오기</button>
+      </div>
       <div id="datalists"></div>
 
       <div class="sec-h" style="margin-top:4px">✅ 자동제외된 내역 <span class="muted">· 회계에 <b>거래처+제품+금액(+수량) 정확일치</b>로 자동 제외 · 최근 업로드분만 펼침(과거는 아래 접힘) · 확인한 건은 <b>✓확인</b>으로 숨김 · 잘못 빠졌으면 ↩복구</span></div>
@@ -366,6 +370,93 @@ function handleUpload(input){
       render(); input.value='';
       alert('✅ '+parsed.reportDate+' 회계자료 반영 완료'+(mm.auto?('\n✅ 정확일치 '+mm.auto+'건 자동 제외 (아래 "자동반영 내역"에서 확인·복구 가능)'):'')+(mm.near?('\n🔵 확인필요 '+mm.near+'건 — 노란색 행 클릭하여 검토'):''));
     }catch(err){ alert('업로드 처리 오류: '+err.message); console.error(err); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+// 일매출일보 원본에서 "2. 납품(선적) 및 미납품(미선적) 현황" 표를 읽어 미반영분 자동 반영.
+// 헤더 라벨(거래처명/제품명/수량/납품/미납품/선적/미선적/금액/...일)로 열 위치를 찾아서, 절대 열번호가
+// 아니라 표 구조 자체로 매칭한다 — 다음 버전에서 열이 밀려도 라벨만 같으면 계속 동작.
+function _xlDate2(v){
+  if(typeof v==='number'&&v>20000&&v<80000){ var dt=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000); return dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0')+'-'+String(dt.getUTCDate()).padStart(2,'0'); }
+  if(v&&v instanceof Date&&!isNaN(v)) return v.getUTCFullYear()+'-'+String(v.getUTCMonth()+1).padStart(2,'0')+'-'+String(v.getUTCDate()).padStart(2,'0');
+  if(typeof v==='string'){ var m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?v.slice(0,10):null; }
+  return null;
+}
+function parsePendingFromIlbo(wb){
+  var sn=null,best=null;
+  wb.SheetNames.forEach(function(s){ var m=String(s).match(/^일매출일보_\d+월_(\d{8})$/); if(m&&(!best||m[1]>best)){ best=m[1]; sn=s; } });
+  if(!sn) return [];
+  var aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true});
+  var anchor=-1;
+  for(var i=0;i<aoa.length;i++){ var r=aoa[i]||[]; for(var c=0;c<r.length;c++){ if(typeof r[c]==='string'&&r[c].indexOf('납품(선적) 및 미납품')>=0){ anchor=i; break; } } if(anchor>=0) break; }
+  if(anchor<0) return [];
+  var h1=aoa[anchor+2]||[], h2=aoa[anchor+3]||[], dataStart=anchor+4;
+  function findAll(row,text){ var out=[]; row.forEach(function(v,idx){ if(v===text) out.push(idx); }); return out; }
+  var custCols=findAll(h1,'거래처명'), prodCols=findAll(h1,'제품명'), qtyCols=findAll(h1,'수량');
+  var gd=findAll(h1,'납품')[0], gdp=findAll(h1,'미납품')[0], gi=findAll(h1,'선적')[0], gip=findAll(h1,'미선적')[0];
+  if(custCols.length<2||prodCols.length<2||qtyCols.length<2||gd==null||gdp==null||gi==null||gip==null) return [];
+  var groups=[{k:'d',c:gd},{k:'dp',c:gdp},{k:'i',c:gi},{k:'ip',c:gip}].sort(function(a,b){return a.c-b.c;});
+  var cols={};
+  groups.forEach(function(g,idx){
+    var next=idx+1<groups.length?groups[idx+1].c:h2.length, amtC=-1, dateC=-1;
+    for(var c=g.c;c<next;c++){
+      if(amtC<0&&h2[c]==='금액') amtC=c;
+      if(dateC<0&&typeof h2[c]==='string'&&h2[c].indexOf('일')>=0&&(h2[c].indexOf('납품')>=0||h2[c].indexOf('선적')>=0)) dateC=c;
+    }
+    cols[g.k+'Amt']=amtC; cols[g.k+'Date']=dateC;
+  });
+  var domCust=custCols[0], intlCust=custCols[1], domProd=prodCols[0], intlProd=prodCols[1], domQty=qtyCols[0], intlQty=qtyCols[1];
+  var out=[], targetMonth=(aoa[dataStart]||[])[1];
+  for(var r=dataStart;r<aoa.length;r++){
+    var row=aoa[r]||[]; var dCust=row[domCust], iCust=row[intlCust];
+    if(dCust==='합계'||iCust==='합계') break;
+    var moLabel=row[1]; if(moLabel&&targetMonth&&moLabel!==targetMonth) break;
+    if(dCust){
+      var dAmt=Number(row[cols.dAmt])||0, dpAmt=Number(row[cols.dpAmt])||0;
+      if(dAmt!==0) out.push({region:'국내',customer:String(dCust).trim(),product:String(row[domProd]||'').trim(),qty:Number(row[domQty])||0,type:'완료',amount:dAmt,date:_xlDate2(row[cols.dDate])||''});
+      else if(dpAmt!==0) out.push({region:'국내',customer:String(dCust).trim(),product:String(row[domProd]||'').trim(),qty:Number(row[domQty])||0,type:'예정',amount:dpAmt,date:_xlDate2(row[cols.dpDate])||''});
+    }
+    if(iCust){
+      var iAmt=Number(row[cols.iAmt])||0, ipAmt=Number(row[cols.ipAmt])||0, custS=String(iCust).trim(), ctry=_pCtry(custS);
+      if(iAmt!==0) out.push({region:'해외',country:ctry,customer:custS,product:String(row[intlProd]||'').trim(),qty:Number(row[intlQty])||0,type:'완료',amount:iAmt,date:_xlDate2(row[cols.iDate])||''});
+      else if(ipAmt!==0) out.push({region:'해외',country:ctry,customer:custS,product:String(row[intlProd]||'').trim(),qty:Number(row[intlQty])||0,type:'예정',amount:ipAmt,date:_xlDate2(row[cols.ipDate])||''});
+    }
+  }
+  return out;
+}
+// 기존 대기 건과 거래처+제품+금액 일치로 매칭 — 있으면 유형·예정일만 갱신, 없으면 신규 추가(삭제는 하지 않음)
+function mergeIlboItems(items){
+  var added=0, updated=0;
+  items.forEach(function(it){
+    var match=null;
+    for(var i=0;i<PENDING.length;i++){
+      var p=PENDING[i];
+      if(p.region!==it.region||p.status!=='대기') continue;
+      if(norm(p.customer)!==norm(it.customer)||norm(p.product)!==norm(it.product)) continue;
+      if(Math.round(Number(p.amount)||0)!==Math.round(it.amount)) continue;
+      match=p; break;
+    }
+    if(match){
+      if(match.type!==it.type||match.expectedDate!==it.date){ match.type=it.type; match.expectedDate=it.date; if(!match.qty) match.qty=it.qty; updated++; }
+    } else {
+      PENDING.unshift({id:uid(),region:it.region,type:it.type,country:it.country||'',customer:it.customer,product:it.product,qty:it.qty,amount:it.amount,expectedDate:it.date,status:'대기',memo:''});
+      added++;
+    }
+  });
+  return {added:added,updated:updated};
+}
+function handleIlboSrcUpload(input){
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var items=parsePendingFromIlbo(wb);
+      if(!items.length){ alert('일매출일보에서 "2. 납품(선적) 및 미납품(미선적) 현황" 표를 찾지 못했습니다. 파일 형식을 확인해주세요.'); input.value=''; return; }
+      var r=mergeIlboItems(items);
+      savePending(false); render(); input.value='';
+      alert('✅ 일매출일보 반영 완료\n신규 '+r.added+'건 추가'+(r.updated?(', '+r.updated+'건 갱신'):'')+((r.added+r.updated)===0?' (변경 없음 — 이미 최신 상태)':''));
+    }catch(err){ alert('일매출일보 처리 오류: '+err.message); console.error(err); }
   };
   reader.readAsArrayBuffer(file);
 }
