@@ -26,7 +26,12 @@ header .who{font-size:12px;color:#94a3b8}
 header .sp{flex:1}
 header button{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
 header button.primary{background:#2563eb;border-color:#2563eb}
-header select{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+#wt-site-wrap{position:relative}
+#wt-site-btn{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+#wt-site-sel{display:none;position:absolute;right:0;top:calc(100% + 6px);width:210px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px;box-shadow:0 10px 28px rgba(15,23,42,.22);z-index:200}
+.sw-item{border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;color:#475569;font-size:12px;cursor:pointer}
+.sw-item:hover{background:#f1f5f9}
+.sw-badge{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:18px;color:#fff;border-radius:4px;font-size:10px;font-weight:700;padding:0 5px;flex-shrink:0}
 .toggle-wrap{display:flex;justify-content:center;margin:18px auto 0}
 .toggle{display:inline-flex;background:#e2e8f0;border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
 .toggle button{border:0;background:transparent;color:#475569;font-size:14px;font-weight:700;padding:9px 24px;border-radius:9px;cursor:pointer;transition:all .15s}
@@ -192,9 +197,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <span class="logo">🏢 전사 일 매출 일보</span>
     <span class="who" id="who"></span>
     <span class="sp"></span>
-    <select id="wt-site-sel">
-      <option value="" style="color:#000">🔁 사이트 이동</option>
-    </select>
+    <div id="wt-site-wrap" style="position:relative">
+      <button id="wt-site-btn" type="button" onclick="(function(){var d=document.getElementById('wt-site-sel');d.style.display=d.style.display==='block'?'none':'block'})()">
+        🔁 사이트 이동
+      </button>
+      <div id="wt-site-sel"></div>
+    </div>
     <input type="file" id="xlsx-input" accept=".xlsx,.xls" class="hidden" onchange="handleUpload(this)">
     <button id="upload-btn" class="primary" style="display:none" onclick="goUploadUnified()">📤 회계 매출자료 업로드</button>
     <button onclick="doLogout()">로그아웃</button>
@@ -882,14 +890,13 @@ async function _wtRenderSwitcher(){
   if(ad){ _wtItems.push({key:'admin',badge:'ADM',grad_from:'#6b7280',title:'관리자 페이지',url:_WT_WONTECH}); }
   var esc=function(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   var box=document.querySelector("#wt-site-sel"); if(!box) return;
-  if("select"==='select'){
-    box.innerHTML='<option value="">사이트 이동…</option>'+_wtItems.map(function(s,i){ return '<option value="'+i+'">'+esc(s.badge)+' · '+esc(s.title)+'</option>'; }).join('');
-    box.onchange=function(){ var v=box.value; if(v!=='') _wtGo(+v); };
-  } else {
-    box.innerHTML=_wtItems.map(function(s,i){
-      return '<div class="sw-item" onclick="_wtGo('+i+')"><span class="sw-badge" style="background:'+(s.grad_from||'#64748b')+'">'+esc(s.badge)+'</span><span style="flex:1">'+esc(s.title)+'</span><i class="bi bi-arrow-right" style="font-size:11px;opacity:.5"></i></div>';
-    }).join('');
-  }
+  box.innerHTML=_wtItems.map(function(s,i){
+    return '<div class="sw-item" onclick="document.getElementById(\'wt-site-sel\').style.display=\'none\';_wtGo('+i+')">'
+      +'<span class="sw-badge" style="background:'+(s.grad_from||'#64748b')+'">'+esc(s.badge)+'</span>'
+      +'<span style="flex:1">'+esc(s.title)+'</span>'
+      +'<span style="font-size:11px;opacity:.45">›</span>'
+      +'</div>';
+  }).join('');
 }
 
 function enterApp(user){
