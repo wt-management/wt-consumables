@@ -305,6 +305,7 @@ var DIVS=['국내제품','국내소모품','해외영업','Surgical','B2C','고�
 var SECT2=['국내영업','해외영업','Surgical','B2C','고객만족'];                              // 사업부별 표 행
 function divRegion(div){ return div==='해외영업'?'해외':'국내'; }
 
+var DOM_MONTHLY={};   // 일매출일보 월별 확정값(BD8 국내제품·BD9 국내소모품). wontech 한국영업 종합이 과거월 기준값으로 쓴다 — 저장 때 빠뜨리면 지워진다
 var ACC=null, PENDING=[], CARRY=[], TARGETS={}, CONSTGT={}, _pendSeq=0, _view='report', _canUp=false;
 
 function won(v){ return (Math.round(Number(v)||0)).toLocaleString(); }
@@ -456,6 +457,23 @@ function mergeIlboItems(items){
   });
   return {added:added,updated:updated,skipped:skipped};
 }
+// 일매출일보 월별 시트(일매출일보_N월_YYYYMMDD…)에서 BD8=국내영업 제품, BD9=국내영업 소모품.
+// 같은 월이 여러 장이면 날짜가 가장 늦은 시트. wontech/upload.html 의 parseDomesticMonthly 와 같은 규칙으로 유지할 것.
+function parseDomesticMonthly(wb){
+  var best={}, out={};
+  var n=function(v){ if(typeof v==='number') return v; var x=Number(String(v==null?'':v).replace(/[,\s]/g,'')); return isFinite(x)?x:0; };
+  wb.SheetNames.forEach(function(sn){
+    var m=String(sn).match(/^일매출일보_(\d{1,2})월(?:_(\d{8}))?/); if(!m) return;
+    var mo=Number(m[1]), dt=Number(m[2]||0); if(!(mo>=1&&mo<=12)) return;
+    if(!best[mo]||dt>=best[mo].dt) best[mo]={sn:sn,dt:dt};
+  });
+  Object.keys(best).forEach(function(k){
+    var ws=wb.Sheets[best[k].sn];
+    var dev=n(ws&&ws['BD8']&&ws['BD8'].v), cons=n(ws&&ws['BD9']&&ws['BD9'].v);
+    if(dev||cons) out[k]={dev:dev,cons:cons,total:dev+cons,sheet:best[k].sn};
+  });
+  return out;
+}
 function handleIlboSrcUpload(input){
   var file=input.files[0]; if(!file) return;
   var reader=new FileReader();
@@ -465,6 +483,7 @@ function handleIlboSrcUpload(input){
       var items=parsePendingFromIlbo(wb);
       if(!items.length){ alert('일매출일보에서 "2. 납품(선적) 및 미납품(미선적) 현황" 표를 찾지 못했습니다. 파일 형식을 확인해주세요.'); input.value=''; return; }
       var r=mergeIlboItems(items);
+      var _dm=parseDomesticMonthly(wb); if(Object.keys(_dm).length) DOM_MONTHLY=_dm;   // 월별 확정값도 함께 갱신(wontech upload.html과 동일 규칙)
       savePending(false); render(); input.value='';
       alert('✅ 일매출일보 반영 완료\n신규 '+r.added+'건 추가'+(r.updated?(', '+r.updated+'건 갱신'):'')+((r.added+r.updated)===0?' (변경 없음 — 이미 최신 상태)':'')+(r.skipped?('\n⚠️ 거래처/제품명 표기가 달라 건너뛴 건 '+r.skipped+'건 — 오탈자인지 확인해주세요'):''));
     }catch(err){ alert('일매출일보 처리 오류: '+err.message); console.error(err); }
@@ -525,7 +544,7 @@ function flagMatches(doAuto){
 }
 
 function saveAccounting(){ return _sb.from('cons_cache').upsert({key:'ilbo_acc',data:ACC},{onConflict:'key'}).then(function(r){ if(r.error) console.warn('acc',r.error); }); }
-function savePending(alertOk){ return _sb.from('cons_cache').upsert({key:'ilbo_pending',data:{rows:PENDING,carry:CARRY,updatedAt:ACC?ACC.reportDate:''}},{onConflict:'key'}).then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else if(alertOk) alert('💾 미반영분 저장 완료'); }); }
+function savePending(alertOk){ return _sb.from('cons_cache').upsert({key:'ilbo_pending',data:{rows:PENDING,carry:CARRY,domesticMonthly:DOM_MONTHLY,updatedAt:ACC?ACC.reportDate:''}},{onConflict:'key'}).then(function(r){ if(r.error) alert('저장 실패: '+r.error.message); else if(alertOk) alert('💾 미반영분 저장 완료'); }); }
 function loadAll(){
   return Promise.all([
     _sb.from('cons_cache').select('data').eq('key','ilbo_acc').maybeSingle(),
@@ -537,6 +556,7 @@ function loadAll(){
     if(res[0].data&&res[0].data.data) ACC=res[0].data.data;
     if(res[1].data&&res[1].data.data&&res[1].data.data.rows) PENDING=res[1].data.data.rows;
     if(res[1].data&&res[1].data.data&&res[1].data.data.carry) CARRY=res[1].data.data.carry;
+    if(res[1].data&&res[1].data.data&&res[1].data.data.domesticMonthly) DOM_MONTHLY=res[1].data.data.domesticMonthly;
     if(res[2].data&&res[2].data.data) TARGETS=res[2].data.data;
     if(res[3].data&&res[3].data.data) CONSTGT=res[3].data.data;
     if(res[4]&&res[4].data&&res[4].data.data) INTLACC=res[4].data.data;
